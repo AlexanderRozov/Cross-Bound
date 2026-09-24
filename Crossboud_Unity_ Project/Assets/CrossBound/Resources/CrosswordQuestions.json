@@ -1,0 +1,54 @@
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Столица Франции",
+      "answer": "PARIS",
+      "startX": 2,
+      "startY": 2,
+      "isHorizontal": true
+    },
+    {
+      "id": "q2",
+      "question": "Самая большая планета",
+      "answer": "JUPITER",
+      "startX": 2,
+      "startY": 4,
+      "isHorizontal": true
+    },
+    {
+      "id": "q3",
+      "question": "Язык программирования",
+      "answer": "CSHARP",
+      "startX": 2,
+      "startY": 6,
+      "isHorizontal": true
+    },
+    {
+      "id": "q4",
+      "question": "Химический символ золота",
+      "answer": "AU",
+      "startX": 2,
+      "startY": 2,
+      "isHorizontal": false
+    },
+    {
+      "id": "q5",
+      "question": "Столица Японии",
+      "answer": "TOKYO",
+      "startX": 4,
+      "startY": 2,
+      "isHorizontal": false
+    },
+    {
+      "id": "q6",
+      "question": "Единица измерения силы тока",
+      "answer": "AMPERE",
+      "startX": 6,
+      "startY": 2,
+      "isHorizontal": false
+    }
+  ],
+  "gridWidth": 15,
+  "gridHeight": 15
+}
