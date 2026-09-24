@@ -5,8 +5,9 @@ using Cysharp.Threading.Tasks;
 public static class PlayerProfileManager
 {
     private const string SaveFileName = "player_profile.json";
+#if UNITY_EDITOR || UNITY_STANDALONE_WIN 
     private static string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
-    
+#endif
     private static PlayerProfile _profile;
     
     public static PlayerProfile Profile => _profile ??= Load();
