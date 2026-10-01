@@ -1,46 +1,43 @@
 using UnityEngine;
-using System.IO;
 using Cysharp.Threading.Tasks;
 
 public static class PlayerProfileManager
 {
-    private const string SaveFileName = "player_profile.json";
-#if UNITY_EDITOR || UNITY_STANDALONE_WIN 
-    private static string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
-#endif
+    private const string SaveKey = "crossbound.player_profile";
     private static PlayerProfile _profile;
     
     public static PlayerProfile Profile => _profile ??= Load();
     
     public static PlayerProfile Load()
     {
-        if (File.Exists(SavePath))
-        {
-            try
-            {
-                string json = File.ReadAllText(SavePath);
-                _profile = JsonUtility.FromJson<PlayerProfile>(json);
-                return _profile;
-            }
-            catch
-            {
-                _profile = new PlayerProfile();
-            }
-        }
-        else
+        if (!PlayerPrefs.HasKey(SaveKey))
         {
             _profile = new PlayerProfile();
+            return _profile;
         }
+
+        string json = PlayerPrefs.GetString(SaveKey);
+        if (string.IsNullOrEmpty(json))
+        {
+            _profile = new PlayerProfile();
+            return _profile;
+        }
+
+        _profile = JsonUtility.FromJson<PlayerProfile>(json) ?? new PlayerProfile();
         return _profile;
     }
     
-    public static async UniTask SaveAsync()
+    public static UniTask SaveAsync()
     {
-        string json = JsonUtility.ToJson(_profile, true);
-        await File.WriteAllTextAsync(SavePath, json);
+        Save();
+        return UniTask.CompletedTask;
     }
     
-    public static void Save() => File.WriteAllText(SavePath, JsonUtility.ToJson(_profile, true));
+    public static void Save()
+    {
+        PlayerPrefs.SetString(SaveKey, JsonUtility.ToJson(Profile));
+        PlayerPrefs.Save();
+    }
     
     public static void CompletePuzzle(string puzzleId, int score)
     {
