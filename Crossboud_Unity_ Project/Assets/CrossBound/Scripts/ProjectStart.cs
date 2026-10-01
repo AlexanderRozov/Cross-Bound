@@ -1,64 +1,41 @@
 using UnityEngine;
-using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
-public class ProjectStart : MonoBehaviour
+public sealed class ProjectStart : MonoBehaviour
 {
-    bool isLoaded = false;
-    List<GameSystem> gameSystemsForStart;
-    List<GameSystem> readySystems;
+    [SerializeField] private string _startSceneName = "MainGameScene";
 
+    private bool _started;
 
-    void Awake()
+    private void Start()
     {
-        Debug.Log("Project Start");
-        gameSystemsForStart = new List<GameSystem>();
-        readySystems = new List<GameSystem>();
-    }
-    void Start()
-    {
-     //   LoadSystems(gameSystemsForStart);
+        StartGame();
     }
 
-    private void LoadSystems(List<GameSystem> gameSystemForLoad)
+    private void StartGame()
     {
-        gameSystemsForStart = gameSystemForLoad;
+        if (_started)
+            return;
+
+        _started = true;
+        SceneManager.sceneLoaded += OnStartSceneLoaded;
+        SceneController.Instance.LoadSceneByName(_startSceneName);
     }
 
-    void Update()
+    private void OnStartSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        Debug.Log("Update");
+        if (scene.name != _startSceneName)
+            return;
 
-        if (gameSystemsForStart.Count == 0)
-        {
-            isLoaded = true;
+        SceneManager.sceneLoaded -= OnStartSceneLoaded;
 
-        }
-        if (isLoaded)
-            LoadStartScene();
-
-        foreach (GameSystem gm in gameSystemsForStart)
-        {
-            if (gm.isReady == true)
-            {
-                readySystems.Add(gm);
-                gameSystemsForStart.Remove(gm);
-            }
-
-
-        }
+        YandexGameService yandex = YandexGameInitializer.Instance?.GameService;
+        yandex?.MarkGameReady();
+        yandex?.StartGameplay();
     }
 
-    private void LoadStartScene()
+    private void OnDestroy()
     {
-     //   SceneController.Instance.LoadSceneById(1);
-         SceneController.Instance.LoadSceneByName("MainGameScene");
-        //SceneController.Instance.LoadSceneByName("MainMenuScene");
-
-
+        SceneManager.sceneLoaded -= OnStartSceneLoaded;
     }
-}
-
-public class GameSystem
-{
-    public bool isReady;
 }

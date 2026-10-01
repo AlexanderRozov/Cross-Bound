@@ -34,7 +34,7 @@ public class CrosswordGameController : MonoBehaviour
         _currentData = await _dataSO.LoadAsync();
         await _grid.Initialize(_currentData);
         
-        _score = PlayerProfileManager.Profile.totalScore;
+        _score = 0;
         UpdateScoreUI();
         
         if (_currentData.questions.Count > 0)
