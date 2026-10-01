@@ -41,6 +41,7 @@ public sealed class CrosswordGameController : MonoBehaviour
         }
         _view.Build(_data, SelectCell, DeleteLetter, RevealCurrentWord);
         if (_data.Questions.Count > 0) SelectQuestion(_data.Questions[0]);
+        Debug.Log($"[CrossBound][Gameplay] Test crossword initialized: {_data.Questions.Count} questions, {_data.gridWidth}x{_data.gridHeight} grid.");
     }
 
     private void SelectCell(int x, int y)

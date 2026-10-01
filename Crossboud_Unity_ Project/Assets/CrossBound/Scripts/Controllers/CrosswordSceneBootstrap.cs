@@ -20,5 +20,6 @@ public static class CrosswordSceneBootstrap
         UIDocument document = screen.GetComponent<UIDocument>();
         document.panelSettings = Resources.Load<PanelSettings>("UI/CrossBoundPanelSettings") ?? ScriptableObject.CreateInstance<PanelSettings>();
         screen.GetComponent<CrosswordGameView>().Configure(document);
+        Debug.Log("[CrossBound][Gameplay] UI Toolkit document created.");
     }
 }
