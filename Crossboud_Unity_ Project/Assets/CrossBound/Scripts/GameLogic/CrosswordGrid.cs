@@ -1,169 +1,95 @@
 using System;
-using UnityEngine;
 using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
 using Cysharp.Threading.Tasks;
-using UnityEngine.AddressableAssets;
 
-public class CrosswordGrid : MonoBehaviour
+public sealed class CrosswordGrid : MonoBehaviour
 {
-    [SerializeField] private GameObject _letterPortPrefab;
-    [SerializeField] private Transform _gridContainer;
-    [SerializeField] private float _cellSize = 50f;
-    
+    private RectTransform _container;
     private LetterCell[,] _cells;
     private CrosswordData _data;
     private LetterCell _selectedCell;
     private Dictionary<string, CrosswordQuestion> _questionsById;
-    
+    private bool _completed;
     public event Action OnPuzzleCompleted;
     public event Action<CrosswordQuestion> OnQuestionSelected;
 
-    public LetterCell GetCell(int x, int y) => _cells[x, y];
-
+    public void Configure(RectTransform container) => _container = container;
     public async UniTask Initialize(CrosswordData data)
     {
-        _data = data;
-        _questionsById = new();
-        
-        foreach (var q in data.questions)
-            _questionsById[q.id] = q;
-        
-        _cells = new LetterCell[data.gridWidth, data.gridHeight];
-        await BuildGrid();
+        _data = data ?? new CrosswordData();
+        _questionsById = new Dictionary<string, CrosswordQuestion>();
+        foreach (CrosswordQuestion question in _data.Questions) _questionsById[question.id] = question;
+        _cells = new LetterCell[_data.gridWidth, _data.gridHeight];
+        BuildGrid();
+        await UniTask.CompletedTask;
     }
-    
-    private async UniTask BuildGrid()
+
+    private void BuildGrid()
     {
-        var prefab = _letterPortPrefab;
-        if (prefab == null)
+        if (_container == null) throw new InvalidOperationException("CrosswordGrid requires a UI container.");
+        foreach (Transform child in _container) Destroy(child.gameObject);
+        GridLayoutGroup layout = _container.GetComponent<GridLayoutGroup>() ?? _container.gameObject.AddComponent<GridLayoutGroup>();
+        layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount; layout.constraintCount = _data.gridWidth;
+        layout.spacing = new Vector2(3, 3); layout.childAlignment = TextAnchor.MiddleCenter;
+        float size = Mathf.Min(54f, 620f / Mathf.Max(_data.gridWidth, _data.gridHeight));
+        layout.cellSize = new Vector2(size, size);
+
+        var answers = new Dictionary<(int, int), char>();
+        foreach (CrosswordQuestion question in _data.Questions)
         {
-            var handle = Addressables.LoadAssetAsync<GameObject>("LetterPort");
-            await handle.Task;
-            prefab = handle.Result;
-        }
-        
-        foreach (var q in _data.questions)
-        {
-            int x = q.startX;
-            int y = q.startY;
-            
-            foreach (char c in q.answer)
+            int x = question.startX, y = question.startY;
+            foreach (char letter in question.answer.ToUpperInvariant())
             {
-                if (x >= _data.gridWidth || y >= _data.gridHeight) break;
-                
-                if (_cells[x, y] == null)
-                {
-                    var go = Instantiate(prefab, _gridContainer);
-                    go.transform.localPosition = new Vector3(x * _cellSize, -y * _cellSize, 0);
-                    var cell = go.GetComponent<LetterCell>() ?? go.AddComponent<LetterCell>();
-                    cell.Initialize(x, y, c, true);
-                    cell.OnCellSelected += SelectCell;
-                    _cells[x, y] = cell;
-                }
-                
-                if (q.isHorizontal) x++; else y++;
+                if (x < 0 || y < 0 || x >= _data.gridWidth || y >= _data.gridHeight) break;
+                if (answers.TryGetValue((x, y), out char existing) && existing != letter)
+                    throw new InvalidOperationException($"Crossword has conflicting letters at {x}, {y}.");
+                answers[(x, y)] = letter; if (question.isHorizontal) x++; else y++;
             }
         }
-        
-        for (int x = 0; x < _data.gridWidth; x++)
-        for (int y = 0; y < _data.gridHeight; y++)
-            if (_cells[x, y] == null)
-            {
-                var go = Instantiate(prefab, _gridContainer);
-                go.transform.localPosition = new Vector3(x * _cellSize, -y * _cellSize, 0);
-                var cell = go.GetComponent<LetterCell>() ?? go.AddComponent<LetterCell>();
-                cell.Initialize(x, y, ' ', false);
-                _cells[x, y] = cell;
-            }
+        for (int y = 0; y < _data.gridHeight; y++) for (int x = 0; x < _data.gridWidth; x++)
+        {
+            bool active = answers.TryGetValue((x, y), out char answer);
+            LetterCell cell = CreateCell(x, y, answer, active); _cells[x, y] = cell;
+        }
     }
-    
+
+    private LetterCell CreateCell(int x, int y, char answer, bool active)
+    {
+        GameObject go = new GameObject($"Cell_{x}_{y}", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LetterCell));
+        go.transform.SetParent(_container, false);
+        Image image = go.GetComponent<Image>(); image.raycastTarget = active;
+        Button button = go.GetComponent<Button>(); button.interactable = active;
+        GameObject label = new GameObject("Letter", typeof(RectTransform), typeof(TextMeshProUGUI)); label.transform.SetParent(go.transform, false);
+        RectTransform rect = label.GetComponent<RectTransform>(); rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = rect.offsetMax = Vector2.zero;
+        TextMeshProUGUI text = label.GetComponent<TextMeshProUGUI>(); text.font = TMP_Settings.defaultFontAsset; text.alignment = TextAlignmentOptions.Center; text.fontSize = 28; text.color = new Color(.08f, .12f, .20f); text.raycastTarget = false;
+        LetterCell cell = go.GetComponent<LetterCell>(); cell.Configure(text, image); cell.Initialize(x, y, answer, active); cell.OnCellSelected += SelectCell;
+        return cell;
+    }
+
     private void SelectCell(LetterCell cell)
     {
-        _selectedCell = cell;
-        var q = GetQuestionAt(cell.X, cell.Y);
-        if (q != null) OnQuestionSelected?.Invoke(q);
+        if (_selectedCell != null) _selectedCell.SetSelected(false);
+        _selectedCell = cell; _selectedCell.SetSelected(true);
+        CrosswordQuestion question = GetQuestionAt(cell.X, cell.Y); if (question != null) OnQuestionSelected?.Invoke(question);
     }
-    
-    public bool TryInputLetter(char letter)
-    {
-        if (_selectedCell == null) return false;
-        bool result = _selectedCell.SetInput(letter);
-        if (result) MoveSelection(1, 0);
-        return result;
-    }
-    
-    public void DeleteLetter()
-    {
-        if (_selectedCell == null) return;
-        _selectedCell.ClearInput();
-        MoveSelection(-1, 0);
-    }
-    
+    public bool TryInputLetter(char letter) { if (_selectedCell == null) return false; bool entered = _selectedCell.SetInput(letter); if (entered) { CheckCompletion(); MoveSelection(1, 0); } return entered; }
+    public void DeleteLetter() { if (_selectedCell == null) return; _selectedCell.ClearInput(); MoveSelection(-1, 0); }
     private void MoveSelection(int dx, int dy)
     {
-        int x = _selectedCell.X + dx;
-        int y = _selectedCell.Y + dy;
-        
-        while (x >= 0 && x < _data.gridWidth && y >= 0 && y < _data.gridHeight)
-        {
-            if (_cells[x, y].IsActive && !_cells[x, y].IsRevealed)
-            {
-                SelectCell(_cells[x, y]);
-                return;
-            }
-            x += dx; y += dy;
-        }
+        int x = _selectedCell.X + dx, y = _selectedCell.Y + dy;
+        while (x >= 0 && y >= 0 && x < _data.gridWidth && y < _data.gridHeight) { if (_cells[x, y].IsActive && !_cells[x, y].IsRevealed) { SelectCell(_cells[x, y]); return; } x += dx; y += dy; }
     }
-    
-    public void RevealWord(string questionId)
+    public void RevealWord(string id)
     {
-        if (!_questionsById.TryGetValue(questionId, out var q)) return;
-        
-        int x = q.startX;
-        int y = q.startY;
-        
-        foreach (char c in q.answer)
-        {
-            if (x >= _data.gridWidth || y >= _data.gridHeight) break;
-            _cells[x, y]?.Reveal();
-            if (q.isHorizontal) x++; else y++;
-        }
+        if (!_questionsById.TryGetValue(id, out CrosswordQuestion question)) return;
+        int x = question.startX, y = question.startY; foreach (char _ in question.answer) { if (x < 0 || y < 0 || x >= _data.gridWidth || y >= _data.gridHeight) break; _cells[x, y].Reveal(); if (question.isHorizontal) x++; else y++; } CheckCompletion();
     }
-    
-    public bool CheckCompletion()
+    private void CheckCompletion()
     {
-        foreach (var q in _data.questions)
-        {
-            int x = q.startX;
-            int y = q.startY;
-            
-            foreach (char c in q.answer)
-            {
-                if (x >= _data.gridWidth || y >= _data.gridHeight) break;
-                if (!_cells[x, y].CheckCorrect()) return false;
-                if (q.isHorizontal) x++; else y++;
-            }
-        }
-        
-        OnPuzzleCompleted?.Invoke();
-        return true;
+        if (_completed) return; foreach (LetterCell cell in _cells) if (cell != null && cell.IsActive && !cell.CheckCorrect()) return; _completed = true; OnPuzzleCompleted?.Invoke();
     }
-    
-    public CrosswordQuestion GetQuestionAt(int x, int y)
-    {
-        foreach (var q in _data.questions)
-        {
-            int qx = q.startX;
-            int qy = q.startY;
-            
-            foreach (char c in q.answer)
-            {
-                if (qx == x && qy == y) return q;
-                if (q.isHorizontal) qx++; else qy++;
-            }
-        }
-        return null;
-    }
-    
-   
+    public CrosswordQuestion GetQuestionAt(int x, int y) { foreach (CrosswordQuestion question in _data.Questions) { int qx = question.startX, qy = question.startY; foreach (char _ in question.answer) { if (qx == x && qy == y) return question; if (question.isHorizontal) qx++; else qy++; } } return null; }
 }

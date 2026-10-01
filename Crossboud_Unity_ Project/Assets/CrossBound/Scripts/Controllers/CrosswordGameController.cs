@@ -1,7 +1,6 @@
 using UnityEngine;
 using TMPro;
 using Cysharp.Threading.Tasks;
-using UnityEngine.AddressableAssets;
 
 public class CrosswordGameController : MonoBehaviour
 {
@@ -13,13 +12,23 @@ public class CrosswordGameController : MonoBehaviour
     private CrosswordData _currentData;
     private CrosswordQuestion _currentQuestion;
     private int _score = 0;
+
+    public void Configure(CrosswordGrid grid, TMP_Text questionText, TMP_Text scoreText)
+    {
+        _grid = grid;
+        _questionText = questionText;
+        _scoreText = scoreText;
+    }
     
     private void Awake()
     {
+        if (InputController.Instance == null)
+            new GameObject("InputController").AddComponent<InputController>();
+
         InputController.Instance.OnLetterInput += OnLetterInput;
         InputController.Instance.OnDelete += OnDelete;
-        InputController.Instance.OnSubmit += OnSubmit;
         
+        if (_grid == null) throw new System.InvalidOperationException("CrosswordGameController requires a CrosswordGrid.");
         _grid.OnQuestionSelected += OnQuestionSelected;
         _grid.OnPuzzleCompleted += OnPuzzleCompleted;
     }
@@ -31,20 +40,22 @@ public class CrosswordGameController : MonoBehaviour
     
     private async UniTask InitializeGame()
     {
-        _currentData = await _dataSO.LoadAsync();
+        _currentData = _dataSO != null
+            ? await _dataSO.LoadAsync()
+            : await new CrosswordContentLoader().LoadAsync("CrosswordQuestions", "CrosswordQuestions");
         await _grid.Initialize(_currentData);
         
         _score = 0;
         UpdateScoreUI();
         
-        if (_currentData.questions.Count > 0)
-            OnQuestionSelected(_currentData.questions[0]);
+        if (_currentData.Questions.Count > 0)
+            OnQuestionSelected(_currentData.Questions[0]);
     }
     
     private void OnQuestionSelected(CrosswordQuestion question)
     {
         _currentQuestion = question;
-        _questionText.text = question.question;
+        if (_questionText != null) _questionText.text = question.question;
     }
     
     private void OnLetterInput(char letter)
@@ -61,30 +72,29 @@ public class CrosswordGameController : MonoBehaviour
     
     private void OnSubmit()
     {
-        if (_currentQuestion != null)
-        {
-            _grid.RevealWord(_currentQuestion.id);
-            _score += 50;
-            UpdateScoreUI();
-        }
+        // Enter checks the current progress. A reveal is deliberately not bound to
+        // a keyboard key so answers cannot be exposed accidentally.
     }
     
     private void OnPuzzleCompleted()
     {
         PlayerProfileManager.CompletePuzzle("crossword_01", _score);
-        _questionText.text = "Поздравляем! Кроссворд решен!";
+        if (_questionText != null) _questionText.text = "Поздравляем! Кроссворд решен!";
     }
     
     private void UpdateScoreUI()
     {
-        _scoreText.text = $"Очки: {_score}";
+        if (_scoreText != null) _scoreText.text = $"Очки: {_score}";
     }
     
     private void OnDestroy()
     {
-        InputController.Instance.OnLetterInput -= OnLetterInput;
-        InputController.Instance.OnDelete -= OnDelete;
-        InputController.Instance.OnSubmit -= OnSubmit;
+        if (InputController.Instance != null)
+        {
+            InputController.Instance.OnLetterInput -= OnLetterInput;
+            InputController.Instance.OnDelete -= OnDelete;
+            InputController.Instance.OnSubmit -= OnSubmit;
+        }
         
         _grid.OnQuestionSelected -= OnQuestionSelected;
         _grid.OnPuzzleCompleted -= OnPuzzleCompleted;
