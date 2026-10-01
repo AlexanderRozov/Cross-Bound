@@ -1,0 +1,69 @@
+{
+    "version": 1,
+    "name": "Inputs",
+    "maps": [
+        {
+            "name": "MainInputActions",
+            "id": "5a9c076e-b868-4990-9a91-e23d9491627d",
+            "actions": [
+                {
+                    "name": "InputLetter",
+                    "type": "Button",
+                    "id": "6d8c1f81-34f6-4da0-9ab9-06e0cdfd7ee6",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false,
+                    "priority": 0
+                },
+                {
+                    "name": "ClickOnLetterPort",
+                    "type": "Button",
+                    "id": "97965e81-0b0b-4ee5-b053-0ad8d8d0c4d0",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false,
+                    "priority": 0
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "6a53851c-2a03-4a9c-a38e-306294af0c1f",
+                    "path": "<Keyboard>/anyKey",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "InputLetter",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "3b755625-de3a-45d3-8653-d1acd85f1c9b",
+                    "path": "<Mouse>/leftButton",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "ClickOnLetterPort",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": [
+        {
+            "name": "New Control Scheme",
+            "bindingGroup": "New Control Scheme",
+            "devices": [
+                {
+                    "devicePath": "<Keyboard>",
+                    "isOptional": false,
+                    "isOR": false
+                }
+            ]
+        }
+    ]
+}
