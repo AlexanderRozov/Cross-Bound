@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using Cysharp.Threading.Tasks;
 using System;
 
 public class InputController : MonoBehaviour
@@ -11,7 +10,7 @@ public class InputController : MonoBehaviour
     public event Action OnSubmit;
     public event Action OnDelete;
     
-    private InputAction _letterAction;
+    private InputActionMap _inputMap;
     private InputAction _submitAction;
     private InputAction _deleteAction;
 
@@ -31,31 +30,27 @@ public class InputController : MonoBehaviour
 
     private void InitializeInputActions()
     {
-        var inputMap = new InputActionMap("Crossword");
-        
-        _letterAction = inputMap.AddAction("Letter", InputActionType.Value, "<Keyboard>/a");
-        _submitAction = inputMap.AddAction("Submit", InputActionType.Button, "<Keyboard>/enter");
-        _deleteAction = inputMap.AddAction("Delete", InputActionType.Button, "<Keyboard>/backspace");
-        
-        _letterAction.performed += HandleLetterInput;
+        _inputMap = new InputActionMap("Crossword");
+        _submitAction = _inputMap.AddAction("Submit", InputActionType.Button, "<Keyboard>/enter");
+        _deleteAction = _inputMap.AddAction("Delete", InputActionType.Button, "<Keyboard>/backspace");
+
         _submitAction.performed += _ => OnSubmit?.Invoke();
         _deleteAction.performed += _ => OnDelete?.Invoke();
-        
-        inputMap.Enable();
+        Keyboard.current.onTextInput += HandleTextInput;
+        _inputMap.Enable();
     }
 
-    private void HandleLetterInput(InputAction.CallbackContext context)
+    private void HandleTextInput(char value)
     {
-        string value = context.control.name;
-        if (value.Length == 1 && char.IsLetter(value[0]))
-        {
-            OnLetterInput?.Invoke(char.ToUpper(value[0]));
-        }
+        if (char.IsLetter(value))
+            OnLetterInput?.Invoke(char.ToUpperInvariant(value));
     }
 
     private void OnDestroy()
     {
-        _letterAction?.Dispose();
+        if (Keyboard.current != null)
+            Keyboard.current.onTextInput -= HandleTextInput;
+        _inputMap?.Dispose();
         _submitAction?.Dispose();
         _deleteAction?.Dispose();
     }
