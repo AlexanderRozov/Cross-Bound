@@ -1,0 +1,16 @@
+{
+  "entries": [
+    { "id": "ru_компьютер", "answer": "КОМПЬЮТЕР", "question": "Электронное устройство для вычислений.", "questionKey": "word.computer", "language": "ru" },
+    { "id": "ru_библиотека", "answer": "БИБЛИОТЕКА", "question": "Место, где хранятся книги.", "questionKey": "word.library", "language": "ru" },
+    { "id": "ru_самолёт", "answer": "САМОЛЁТ", "question": "Воздушное транспортное средство.", "questionKey": "word.airplane", "language": "ru" },
+    { "id": "ru_планета", "answer": "ПЛАНЕТА", "question": "Небесное тело, вращающееся вокруг звезды.", "questionKey": "word.planet", "language": "ru" },
+    { "id": "ru_дерево", "answer": "ДЕРЕВО", "question": "Многолетнее растение со стволом.", "questionKey": "word.tree", "language": "ru" },
+    { "id": "ru_школа", "answer": "ШКОЛА", "question": "Учебное заведение.", "questionKey": "word.school", "language": "ru" },
+    { "id": "ru_музыка", "answer": "МУЗЫКА", "question": "Искусство звуков.", "questionKey": "word.music", "language": "ru" },
+    { "id": "ru_вода", "answer": "ВОДА", "question": "Жидкость, необходимая для жизни.", "questionKey": "word.water", "language": "ru" },
+    { "id": "ru_река", "answer": "РЕКА", "question": "Поток воды в естественном русле.", "questionKey": "word.river", "language": "ru" },
+    { "id": "ru_книга", "answer": "КНИГА", "question": "Печатное литературное произведение.", "questionKey": "word.book", "language": "ru" },
+    { "id": "ru_дом", "answer": "ДОМ", "question": "Здание для проживания.", "questionKey": "word.house", "language": "ru" },
+    { "id": "ru_кот", "answer": "КОТ", "question": "Домашнее животное семейства кошачьих.", "questionKey": "word.cat", "language": "ru" }
+  ]
+}

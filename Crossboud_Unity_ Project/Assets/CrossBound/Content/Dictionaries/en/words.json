@@ -1,0 +1,20 @@
+{
+  "entries": [
+    { "id": "en_computer", "answer": "COMPUTER", "question": "A machine used for calculations.", "questionKey": "word.computer", "language": "en" },
+    { "id": "en_language", "answer": "LANGUAGE", "question": "A system of communication.", "questionKey": "word.language", "language": "en" },
+    { "id": "en_elephant", "answer": "ELEPHANT", "question": "The largest land animal.", "questionKey": "word.elephant", "language": "en" },
+    { "id": "en_planet", "answer": "PLANET", "question": "A body that orbits a star.", "questionKey": "word.planet", "language": "en" },
+    { "id": "en_garden", "answer": "GARDEN", "question": "A place where plants are grown.", "questionKey": "word.garden", "language": "en" },
+    { "id": "en_bridge", "answer": "BRIDGE", "question": "A structure that crosses an obstacle.", "questionKey": "word.bridge", "language": "en" },
+    { "id": "en_school", "answer": "SCHOOL", "question": "A place for learning.", "questionKey": "word.school", "language": "en" },
+    { "id": "en_forest", "answer": "FOREST", "question": "A large area covered with trees.", "questionKey": "word.forest", "language": "en" },
+    { "id": "en_ocean", "answer": "OCEAN", "question": "The largest kind of sea.", "questionKey": "word.ocean", "language": "en" },
+    { "id": "en_music", "answer": "MUSIC", "question": "The art of organized sound.", "questionKey": "word.music", "language": "en" },
+    { "id": "en_water", "answer": "WATER", "question": "A liquid essential for life.", "questionKey": "word.water", "language": "en" },
+    { "id": "en_house", "answer": "HOUSE", "question": "A building where people live.", "questionKey": "word.house", "language": "en" },
+    { "id": "en_train", "answer": "TRAIN", "question": "A vehicle that runs on rails.", "questionKey": "word.train", "language": "en" },
+    { "id": "en_apple", "answer": "APPLE", "question": "A common round fruit.", "questionKey": "word.apple", "language": "en" },
+    { "id": "en_cat", "answer": "CAT", "question": "A small domestic feline.", "questionKey": "word.cat", "language": "en" },
+    { "id": "en_dog", "answer": "DOG", "question": "A common domestic canine.", "questionKey": "word.dog", "language": "en" }
+  ]
+}
