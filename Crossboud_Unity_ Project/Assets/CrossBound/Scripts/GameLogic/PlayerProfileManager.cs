@@ -41,17 +41,20 @@ public static class PlayerProfileManager
     
     public static void CompletePuzzle(string puzzleId, int score)
     {
-        _profile.completedPuzzles++;
-        _profile.totalScore += score;
-        if (!_profile.completedPuzzleIds.Contains(puzzleId))
-            _profile.completedPuzzleIds.Add(puzzleId);
-        _profile.lastPlayed = System.DateTime.Now;
+        PlayerProfile profile = Profile;
+        if (!profile.completedPuzzleIds.Contains(puzzleId))
+        {
+            profile.completedPuzzles++;
+            profile.completedPuzzleIds.Add(puzzleId);
+        }
+        profile.totalScore += score;
+        profile.lastPlayed = System.DateTime.Now;
         Save();
     }
     
     public static void SetPlayerName(string name)
     {
-        _profile.playerName = name;
+        Profile.playerName = name;
         Save();
     }
 }

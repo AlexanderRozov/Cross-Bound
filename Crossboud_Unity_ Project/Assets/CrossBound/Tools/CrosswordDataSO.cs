@@ -1,24 +1,23 @@
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement.AsyncOperations;
 using Cysharp.Threading.Tasks;
 
 [CreateAssetMenu(fileName = "CrosswordData", menuName = "Crossword/Crossword Data")]
 public class CrosswordDataSO : ScriptableObject
 {
     public TextAsset jsonFile;
+    [Tooltip("Addressables key used when jsonFile is not assigned.")]
+    public string addressableKey = "CrosswordQuestions";
+    public string resourcesPath = "CrosswordQuestions";
     
     public async UniTask<CrosswordData> LoadAsync()
     {
         if (jsonFile != null)
-            return JsonUtility.FromJson<CrosswordData>(jsonFile.text);
+        {
+            CrosswordData data = JsonUtility.FromJson<CrosswordData>(jsonFile.text) ?? new CrosswordData();
+            data.NormalizeGeneratedLayout();
+            return data;
+        }
         
-        var handle = Addressables.LoadAssetAsync<TextAsset>("CrosswordQuestions");
-        await handle.Task;
-        
-        if (handle.Status == AsyncOperationStatus.Succeeded)
-            return JsonUtility.FromJson<CrosswordData>(handle.Result.text);
-        
-        return new CrosswordData();
+        return await new CrosswordContentLoader().LoadAsync(addressableKey, resourcesPath);
     }
 }
