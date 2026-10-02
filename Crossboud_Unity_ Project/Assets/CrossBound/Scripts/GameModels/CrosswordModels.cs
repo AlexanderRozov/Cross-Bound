@@ -45,6 +45,7 @@ public class PlayerProfile
     public int currentLevel = 0;
     public int completedPuzzles = 0;
     public int totalScore = 0;
+    public int bestScore = 0;
     public List<string> completedPuzzleIds = new();
     public DateTime lastPlayed = DateTime.Now;
 }

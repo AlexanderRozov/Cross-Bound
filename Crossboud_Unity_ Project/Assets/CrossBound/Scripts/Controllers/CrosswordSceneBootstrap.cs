@@ -8,12 +8,12 @@ public static class CrosswordSceneBootstrap
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CreateGameScreen()
     {
-        if (SceneManager.GetActiveScene().name != "MainGameScene" || Object.FindFirstObjectByType<CrosswordGameController>() != null)
+        if (SceneManager.GetActiveScene().name != "MainGameScene" || Object.FindAnyObjectByType<CrosswordGameController>() != null)
             return;
 
         // MainGameScene previously contained a prototype uGUI Canvas. The playable
         // screen is exclusively UI Toolkit, so do not render that legacy placeholder.
-        foreach (Canvas canvas in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+        foreach (Canvas canvas in Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include))
             canvas.gameObject.SetActive(false);
 
         GameObject screen = new GameObject("Crossword UI Toolkit", typeof(UIDocument), typeof(CrosswordGameView), typeof(CrosswordGameController));

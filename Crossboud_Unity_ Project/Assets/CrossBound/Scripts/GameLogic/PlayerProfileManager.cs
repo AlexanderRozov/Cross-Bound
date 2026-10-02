@@ -24,6 +24,8 @@ public static class PlayerProfileManager
         }
 
         _profile = JsonUtility.FromJson<PlayerProfile>(json) ?? new PlayerProfile();
+        // Old saves predate bestScore; PlayerPrefs may also be wiped on some WebGL builds.
+        _profile.completedPuzzleIds ??= new System.Collections.Generic.List<string>();
         return _profile;
     }
     
@@ -48,6 +50,7 @@ public static class PlayerProfileManager
             profile.completedPuzzleIds.Add(puzzleId);
         }
         profile.totalScore += score;
+        profile.bestScore = Mathf.Max(profile.bestScore, score);
         profile.lastPlayed = System.DateTime.Now;
         Save();
     }

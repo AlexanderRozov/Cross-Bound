@@ -1,3 +1,4 @@
+using System;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -10,22 +11,9 @@ public sealed class CrosswordContentLoader
     {
         if (!string.IsNullOrWhiteSpace(address))
         {
-            AsyncOperationHandle<TextAsset> handle = Addressables.LoadAssetAsync<TextAsset>(address);
-            await handle.Task;
-            if (handle.Status == AsyncOperationStatus.Succeeded && handle.Result != null)
-            {
-                CrosswordData addressableData = JsonUtility.FromJson<CrosswordData>(handle.Result.text);
-                Addressables.Release(handle);
-                if (addressableData != null)
-                {
-                    addressableData.NormalizeGeneratedLayout();
-                    return addressableData;
-                }
-            }
-            else
-            {
-                Addressables.Release(handle);
-            }
+            CrosswordData addressableData = await TryLoadFromAddressables(address);
+            if (addressableData != null)
+                return addressableData;
         }
 
         TextAsset fallback = Resources.Load<TextAsset>(resourcesPath);
@@ -38,5 +26,36 @@ public sealed class CrosswordContentLoader
         CrosswordData result = JsonUtility.FromJson<CrosswordData>(fallback.text) ?? new CrosswordData();
         result.NormalizeGeneratedLayout();
         return result;
+    }
+
+    // A missing address or an unloaded Addressables group used to throw straight out of
+    // InitializeAsync and left the game on a blank screen. The attempt is fully guarded now.
+    private static async UniTask<CrosswordData> TryLoadFromAddressables(string address)
+    {
+        AsyncOperationHandle<TextAsset> handle = default;
+        try
+        {
+            handle = Addressables.LoadAssetAsync<TextAsset>(address);
+            await handle.Task;
+            if (handle.Status == AsyncOperationStatus.Succeeded && handle.Result != null)
+            {
+                CrosswordData data = JsonUtility.FromJson<CrosswordData>(handle.Result.text);
+                if (data != null)
+                {
+                    data.NormalizeGeneratedLayout();
+                    return data;
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning($"[CrossBound][Content] Addressables load for '{address}' failed ({exception.GetType().Name}: {exception.Message}). Falling back to Resources.");
+        }
+        finally
+        {
+            if (handle.IsValid())
+                Addressables.Release(handle);
+        }
+        return null;
     }
 }

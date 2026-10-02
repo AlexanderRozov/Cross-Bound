@@ -1,16 +1,15 @@
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
-/// <summary>Game state only; all rendering is delegated to CrosswordGameView (UI Toolkit).</summary>
+/// <summary>Thin adapter between input, the pure <see cref="CrosswordGameState"/> and the <see cref="CrosswordGameView"/>.</summary>
 public sealed class CrosswordGameController : MonoBehaviour
 {
+    private const string PuzzleId = "crossword_01";
+
     private CrosswordGameView _view;
-    private CrosswordData _data;
-    private CrosswordQuestion _currentQuestion;
-    private char[,] _answers;
-    private char[,] _inputs;
-    private int _selectedX = -1, _selectedY = -1, _score;
-    private bool _completed;
+    private CrosswordGameState _state;
 
     public void Configure(CrosswordGameView view) => _view = view;
 
@@ -18,78 +17,75 @@ public sealed class CrosswordGameController : MonoBehaviour
     {
         _view ??= GetComponent<CrosswordGameView>();
         if (InputController.Instance == null) new GameObject("InputController").AddComponent<InputController>();
-        InputController.Instance.OnLetterInput += InputLetter;
-        InputController.Instance.OnDelete += DeleteLetter;
+        InputController.Instance.OnLetterInput += HandleLetterInput;
+        InputController.Instance.OnDelete += HandleDelete;
+        InputController.Instance.OnSubmit += HandleCheck;
+        InputController.Instance.OnNavigate += HandleNavigate;
     }
 
     private async void Start() => await InitializeAsync();
 
     private async UniTask InitializeAsync()
     {
-        _data = await new CrosswordContentLoader().LoadAsync("CrosswordQuestions", "CrosswordQuestions");
-        _answers = new char[_data.gridWidth, _data.gridHeight];
-        _inputs = new char[_data.gridWidth, _data.gridHeight];
-        foreach (CrosswordQuestion question in _data.Questions)
+        CrosswordData data = await new CrosswordContentLoader().LoadAsync("CrosswordQuestions", "CrosswordQuestions");
+
+        List<string> errors = CrosswordDataValidator.Validate(data);
+        if (errors.Count > 0)
+            Debug.LogError("[CrossBound][Gameplay] Invalid crossword data:\n - " + string.Join("\n - ", errors));
+
+        _state = new CrosswordGameState();
+        _state.Initialize(data);
+        _state.Completed += OnPuzzleCompleted;
+
+        _view.Build(_state,
+            (x, y) => _state.SelectCell(x, y),
+            () => _state.DeleteLetter(),
+            () => _state.RevealCurrentWord(),
+            () => HandleCheck(),
+            RestartPuzzle);
+
+        if (data.Questions.Count > 0)
+            _state.SelectQuestion(data.Questions[0]);
+
+        Debug.Log($"[CrossBound][Gameplay] Crossword initialized: {data.Questions.Count} questions, {_state.Width}x{_state.Height} grid.");
+    }
+
+    private void HandleLetterInput(char letter) => _state?.InputLetter(letter);
+    private void HandleDelete() => _state?.DeleteLetter();
+    private void HandleCheck() => _state?.CheckCurrentWord();
+
+    private void HandleNavigate(int dx, int dy)
+    {
+        if (_state == null || _state.SelectedX < 0) return;
+        int x = _state.SelectedX + dx, y = _state.SelectedY + dy;
+        while (x >= 0 && y >= 0 && x < _state.Width && y < _state.Height)
         {
-            int x = question.startX, y = question.startY;
-            foreach (char letter in question.answer.ToUpperInvariant())
-            {
-                if (x < 0 || y < 0 || x >= _data.gridWidth || y >= _data.gridHeight) break;
-                _answers[x, y] = letter;
-                if (question.isHorizontal) x++; else y++;
-            }
+            if (_state.HasAnswer(x, y)) { _state.SelectCell(x, y); return; }
+            x += dx; y += dy;
         }
-        _view.Build(_data, SelectCell, DeleteLetter, RevealCurrentWord);
-        if (_data.Questions.Count > 0) SelectQuestion(_data.Questions[0]);
-        Debug.Log($"[CrossBound][Gameplay] Test crossword initialized: {_data.Questions.Count} questions, {_data.gridWidth}x{_data.gridHeight} grid.");
     }
 
-    private void SelectCell(int x, int y)
+    private void OnPuzzleCompleted(int score)
     {
-        if (_answers[x, y] == '\0') return;
-        _selectedX = x; _selectedY = y;
-        foreach (CrosswordQuestion question in _data.Questions)
-            if (Contains(question, x, y)) { SelectQuestion(question); break; }
-        _view.SetSelected(x, y);
+        PlayerProfileManager.CompletePuzzle(PuzzleId, score);
+        int bestScore = PlayerProfileManager.Profile.bestScore;
+        _view.ShowCompleted(score, bestScore);
+        Debug.Log($"[CrossBound][Gameplay] Puzzle completed with {score} points (best: {bestScore}).");
     }
 
-    private void SelectQuestion(CrosswordQuestion question)
+    private void RestartPuzzle()
     {
-        _currentQuestion = question;
-        _view.SetQuestion(question.number > 0 ? question.number : GetQuestionNumber(question), question.question, _score);
+        // ProjectStart no longer exists after the initial load, so gameplay must be re-reported here.
+        YandexGameInitializer.Instance?.GameService?.StartGameplay();
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
-    private void InputLetter(char letter)
+    private void OnDestroy()
     {
-        if (_selectedX < 0 || _answers[_selectedX, _selectedY] == '\0' || _completed) return;
-        _inputs[_selectedX, _selectedY] = char.ToUpperInvariant(letter);
-        if (_inputs[_selectedX, _selectedY] == _answers[_selectedX, _selectedY]) _score += 10;
-        _view.SetCell(_selectedX, _selectedY, _inputs[_selectedX, _selectedY], _inputs[_selectedX, _selectedY] == _answers[_selectedX, _selectedY]);
-        _view.SetScore(_score);
-        MoveForward(); CheckCompletion();
+        if (InputController.Instance == null) return;
+        InputController.Instance.OnLetterInput -= HandleLetterInput;
+        InputController.Instance.OnDelete -= HandleDelete;
+        InputController.Instance.OnSubmit -= HandleCheck;
+        InputController.Instance.OnNavigate -= HandleNavigate;
     }
-
-    private void DeleteLetter()
-    {
-        if (_selectedX < 0 || _completed) return;
-        _inputs[_selectedX, _selectedY] = '\0'; _view.SetCell(_selectedX, _selectedY, '\0', false);
-    }
-
-    private void RevealCurrentWord()
-    {
-        if (_currentQuestion == null || _completed) return;
-        int x = _currentQuestion.startX, y = _currentQuestion.startY;
-        foreach (char letter in _currentQuestion.answer.ToUpperInvariant())
-        {
-            _inputs[x, y] = letter; _view.SetCell(x, y, letter, true);
-            if (_currentQuestion.isHorizontal) x++; else y++;
-        }
-        CheckCompletion();
-    }
-
-    private void MoveForward() { if (_currentQuestion == null) return; int x = _selectedX, y = _selectedY; if (_currentQuestion.isHorizontal) x++; else y++; if (x >= 0 && y >= 0 && x < _data.gridWidth && y < _data.gridHeight && _answers[x, y] != '\0') SelectCell(x, y); }
-    private int GetQuestionNumber(CrosswordQuestion question) { for (int index = 0; index < _data.Questions.Count; index++) if (ReferenceEquals(_data.Questions[index], question)) return index + 1; return 1; }
-    private bool Contains(CrosswordQuestion q, int x, int y) { int qx = q.startX, qy = q.startY; foreach (char _ in q.answer) { if (qx == x && qy == y) return true; if (q.isHorizontal) qx++; else qy++; } return false; }
-    private void CheckCompletion() { for (int y = 0; y < _data.gridHeight; y++) for (int x = 0; x < _data.gridWidth; x++) if (_answers[x, y] != '\0' && _answers[x, y] != _inputs[x, y]) return; _completed = true; PlayerProfileManager.CompletePuzzle("crossword_01", _score); _view.ShowCompleted(_score); }
-    private void OnDestroy() { if (InputController.Instance == null) return; InputController.Instance.OnLetterInput -= InputLetter; InputController.Instance.OnDelete -= DeleteLetter; }
 }

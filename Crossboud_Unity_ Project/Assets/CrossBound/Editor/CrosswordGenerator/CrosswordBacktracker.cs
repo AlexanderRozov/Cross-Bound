@@ -54,7 +54,9 @@ namespace CrossBound.Editor.CrosswordGenerator
         public GeneratedCrossword Generate(string id, string language, IReadOnlyList<WordEntry> orderedWords)
         {
             if (orderedWords == null || orderedWords.Count == 0) return null;
-            foreach (WordEntry seed in orderedWords.Where(word => word.answer.Length <= _settings.width).Take(orderedWords.Count))
+            // Trying every word as the seed multiplies the cost by the pool size;
+            // the analysis ordering already puts the most promising words first.
+            foreach (WordEntry seed in orderedWords.Where(word => word.answer.Length <= _settings.width).Take(25))
             {
                 Clear();
                 int x = (_settings.width - seed.answer.Length) / 2;
@@ -155,9 +157,19 @@ namespace CrossBound.Editor.CrosswordGenerator
         private GeneratedCrossword ToResult(string id, string language)
         {
             var result = new GeneratedCrossword { id = id, language = language, width = _settings.width, height = _settings.height };
-            int number = 1;
-            foreach (Placement placement in _placements.OrderBy(item => item.Y).ThenBy(item => item.X).ThenBy(item => item.Direction))
-                result.entries.Add(new GeneratedCrosswordEntry { id = placement.Word.id, number = number++, direction = placement.Direction, startX = placement.X, startY = placement.Y, answer = placement.Word.answer, question = placement.Word.question, questionKey = placement.Word.questionKey });
+            var ordered = _placements.OrderBy(item => item.Y).ThenBy(item => item.X).ThenBy(item => item.Direction).ToList();
+
+            // Standard crossword numbering: words sharing a start cell share a number.
+            var numbers = new Dictionary<(int x, int y), int>();
+            int next = 1;
+            foreach (Placement placement in ordered)
+            {
+                var key = (placement.X, placement.Y);
+                if (!numbers.ContainsKey(key)) numbers[key] = next++;
+            }
+
+            foreach (Placement placement in ordered)
+                result.entries.Add(new GeneratedCrosswordEntry { id = placement.Word.id, number = numbers[(placement.X, placement.Y)], direction = placement.Direction, startX = placement.X, startY = placement.Y, answer = placement.Word.answer, question = placement.Word.question, questionKey = placement.Word.questionKey });
             return result;
         }
 
