@@ -1,0 +1,118 @@
+VBCSCompilerPreWarmer: watching VBCSCompiler (PID 17008)
+VBCSCompilerPreWarmer: pre-warm launched (dotnet PID 2980)
+VBCSCompiler prewarm took 20.35 ms
+[Licensing::Module] Trying to connect to existing licensing client channel...
+[Licensing::IpcConnector] Channel LicenseClient-fog54 doesn't exist
+Built from '6000.7/staging' branch; Version is '6000.7.0b1 (6f112f2bea37) revision 7278895'; Using compiler version '195136248'; Build Type 'Release'
+OS: 'Windows 11  (10.0.26300) Professional' Language: 'ru' Physical Memory: 32524 MB
+BatchMode: 1, IsHumanControllingUs: 0, StartBugReporterOnCrash: 0, Is64bit: 1
+System  architecture: x64
+Process architecture: x64
+Date: 2026-10-02T17:40:39Z
+[Licensing::Module] Successfully launched the LicensingClient (PId: 25060)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-fog54" at "2026-10-02T17:40:39.5190776Z"
+
+COMMAND LINE ARGUMENTS:
+C:\Program Files\Unity\Hub\Editor\6000.7.0b1\Editor\Unity.exe
+-batchmode
+-projectPath
+H:\Cross-Bound\Crossboud_Unity_ Project
+-executeMethod
+CrossBoundProjectSetup.BatchSetup
+-quit
+-logFile
+H:\Cross-Bound\setup_log.txt
+Successfully changed project path to: H:\Cross-Bound\Crossboud_Unity_ Project
+H:/Cross-Bound/Crossboud_Unity_ Project
+[UnityMemory] Configuration Parameters - Can be set up in boot.config
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-nav-mesh-worker=65536"
+    "memorysetup-temp-allocator-size-audio-worker=65536"
+    "memorysetup-temp-allocator-size-cloud-worker=32768"
+    "memorysetup-temp-allocator-size-gfx=262144"
+    "memorysetup-remapper-allocator-initial-capacity=32768"
+    "memorysetup-temp-allocator-size-preload-manager=33554432"
+    "memorysetup-entities-archetype-allocator-budget=16777216"
+    "memorysetup-entities-query-allocator-budget=16777216"
+    "memorysetup-allocator-temp-initial-block-size-main=262144"
+    "memorysetup-allocator-temp-initial-block-size-worker=262144"
+    "memorysetup-temp-allocator-size-job-worker=262144"
+    "memorysetup-temp-allocator-size-background-worker=32768"
+    "memorysetup-bucket-allocator-granularity=16"
+    "memorysetup-bucket-allocator-bucket-count=8"
+    "memorysetup-bucket-allocator-block-size=33554432"
+    "memorysetup-bucket-allocator-block-count=8"
+    "memorysetup-main-allocator-block-size=16777216"
+    "memorysetup-thread-allocator-block-size=16777216"
+    "memorysetup-main-allocator-mimalloc-enabled=1"
+    "memorysetup-gfx-main-allocator-block-size=16777216"
+    "memorysetup-gfx-thread-allocator-block-size=16777216"
+    "memorysetup-cache-allocator-block-size=4194304"
+    "memorysetup-typetree-allocator-block-size=2097152"
+    "memorysetup-profiler-bucket-allocator-granularity=16"
+    "memorysetup-profiler-bucket-allocator-bucket-count=8"
+    "memorysetup-profiler-bucket-allocator-block-size=33554432"
+    "memorysetup-profiler-bucket-allocator-block-count=8"
+    "memorysetup-profiler-allocator-block-size=16777216"
+    "memorysetup-profiler-editor-allocator-block-size=1048576"
+    "memorysetup-temp-allocator-size-main=16777216"
+    "memorysetup-job-temp-allocator-block-size=2097152"
+    "memorysetup-job-temp-allocator-block-size-background=1048576"
+    "memorysetup-job-temp-allocator-reduction-small-platforms=262144"
+Logging is directed to a specific file, skipping project log.
+Player connection [26772]  Target information:
+
+Player connection [26772]  * "[IP] 192.168.0.151 [Port] 55504 [Flags] 2 [Guid] 393733739 [EditorId] 393733739 [Version] 1048832 [Id] WindowsEditor(7,FogPC) [Debug] 1 [PackageName] WindowsEditor [ProjectName] Editor" 
+
+Player connection [26772]  * "[IP] 169.254.77.96 [Port] 55504 [Flags] 2 [Guid] 393733739 [EditorId] 393733739 [Version] 1048832 [Id] WindowsEditor(7,FogPC) [Debug] 1 [PackageName] WindowsEditor [ProjectName] Editor" 
+
+Player connection [26772]  * "[IP] 169.254.4.63 [Port] 55504 [Flags] 2 [Guid] 393733739 [EditorId] 393733739 [Version] 1048832 [Id] WindowsEditor(7,FogPC) [Debug] 1 [PackageName] WindowsEditor [ProjectName] Editor" 
+
+Player connection [26772] Host joined multi-casting on [225.0.0.222:54997]...
+[Licensing::Client] Code 10 while verifying Licensing Client signature (process Id: 25060, path: "C:/Program Files/Unity/Hub/Editor/6000.7.0b1/Editor/Data/Resources/Licensing/Client/Unity.Licensing.Client.exe")
+[Licensing::Module] LicensingClient has failed validation; ignoring
+Player connection [26772] Host joined alternative multi-casting on [225.0.0.222:34997]...
+Input System module state changed to: Initialized.
+[Physics::Module] Initialized fallback backend.
+[Physics::Module] Id: 0xdecafbad
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.19.0-rc.1+a1d64c6
+  Session Id:              ed149efd829b491190d5d1bac51acf88
+  Correlation Id:          4be4667db80919d4a180914e1f9db43e
+  External correlation Id: 3779740333196882581
+  Machine Id:              WNu0A+xwqbDeeU00/uNJW2zjO58=
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-fog54" (connect: 0.06s, validation: 0.11s, handshake: 0.08s)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-fog54-notifications" at "2026-10-02T17:40:39.711098Z"
+[Licensing::Module] Connected to LicensingClient (PId: 25060, launch time: 0.01, total connection time: 0.26s)
+[Licensing::Module] Error: Access token is unavailable; failed to update
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] License group:
+  Id: F4-TNES-KK3B-Z7US-DJ5R-XXXX
+  Product: Unity Personal
+  Type: ULF
+  Expiration: Unlimited
+[Licensing::Module] License group:
+  Id: 10170825249190-UnityPersXXXX
+  Product: Unity Personal
+  Type: Assigned
+  Expiration: Unlimited
+[Licensing::Client] Successfully updated license, isAsync: True, time: 0.00
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] License group:
+  Id: F4-TNES-KK3B-Z7US-DJ5R-XXXX
+  Product: Unity Personal
+  Type: ULF
+  Expiration: Unlimited
+[Licensing::Module] License group:
+  Id: 10170825249190-UnityPersXXXX
+  Product: Unity Personal
+  Type: Assigned
+  Expiration: Unlimited
+[Licensing::Module] Licensing Background thread has ended after 0.28s
+[Package Manager] Could not connect to IPC stream "Upm-24372" after 30.0 seconds.
+[Package Manager] Failed to start the Unity Package Manager local server process. Make sure the process [C:/Program Files/Unity/Hub/Editor/6000.7.0b1/Editor/Data/Resources/PackageManager/Server/UnityPackageManager.exe] is not blocked by Windows Defender or any other anti-virus configuration.
+[ExitDontLaunchBugReporter] Exiting without the bug reporter. Application will exit with return code 1

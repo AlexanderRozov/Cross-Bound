@@ -11,11 +11,16 @@ public sealed class CrosswordContentLoader
     {
         if (!string.IsNullOrWhiteSpace(address))
         {
+            Debug.Log($"[CrossBound][Content] Trying Addressables with address '{address}'...");
             CrosswordData addressableData = await TryLoadFromAddressables(address);
             if (addressableData != null)
+            {
+                Debug.Log("[CrossBound][Content] Crossword loaded from Addressables.");
                 return addressableData;
+            }
         }
 
+        Debug.Log($"[CrossBound][Content] Falling back to Resources.Load('{resourcesPath}').");
         TextAsset fallback = Resources.Load<TextAsset>(resourcesPath);
         if (fallback == null)
         {
@@ -25,6 +30,7 @@ public sealed class CrosswordContentLoader
 
         CrosswordData result = JsonUtility.FromJson<CrosswordData>(fallback.text) ?? new CrosswordData();
         result.NormalizeGeneratedLayout();
+        Debug.Log($"[CrossBound][Content] Crossword parsed from Resources: {result.Questions.Count} questions, {result.gridWidth}x{result.gridHeight}. JSON size: {fallback.text.Length} chars.");
         return result;
     }
 

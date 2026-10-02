@@ -23,31 +23,55 @@ public sealed class CrosswordGameView : MonoBehaviour
 
     public void Configure(UIDocument document) => _document = document;
 
-    public void Build(CrosswordGameState state, Action<int, int> select, Action delete, Action hint, Action check, Action restart)
+    /// <summary>Builds the whole screen. Returns false (and logs why) when the UI cannot be constructed.</summary>
+    public bool Build(CrosswordGameState state, Action<int, int> select, Action delete, Action hint, Action check, Action restart)
     {
         _state = state ?? throw new ArgumentNullException(nameof(state));
         _onRestart = restart;
 
         _document ??= GetComponent<UIDocument>();
+        if (_document == null)
+        {
+            Debug.LogError("[CrossBound][View] UIDocument component is MISSING — cannot build UI.");
+            return false;
+        }
         VisualElement root = _document.rootVisualElement;
+        if (root == null)
+        {
+            Debug.LogError("[CrossBound][View] UIDocument.rootVisualElement is NULL — the panel was not initialized.");
+            return false;
+        }
         root.Clear();
         _winOverlay = null;
 
         VisualTreeAsset layout = Resources.Load<VisualTreeAsset>("UI/CrosswordGame");
+        Debug.Log($"[CrossBound][View] UXML layout: {(layout != null ? "loaded" : "MISSING — building code fallback")}.");
         if (layout != null) layout.CloneTree(root); else CreateFallback(root);
         StyleSheet style = Resources.Load<StyleSheet>("UI/CrosswordGame");
+        Debug.Log($"[CrossBound][View] USS style: {(style != null ? "loaded" : "MISSING")}.");
         if (style != null) root.styleSheets.Add(style);
 
         _number = root.Q<Label>("question-number");
         _question = root.Q<Label>("question");
         _score = root.Q<Label>("score");
         _grid = root.Q<VisualElement>("grid-container");
+        Debug.Log($"[CrossBound][View] Elements: question-number={(_number != null ? "ok" : "NULL")}, question={(_question != null ? "ok" : "NULL")}, score={(_score != null ? "ok" : "NULL")}, grid-container={(_grid != null ? "ok" : "NULL")}.");
+        if (_grid == null)
+        {
+            Debug.LogError("[CrossBound][View] 'grid-container' element not found — the crossword grid cannot be built.");
+            return false;
+        }
 
-        root.Q<Button>("delete-button").clicked += () => delete?.Invoke();
-        root.Q<Button>("hint-button").clicked += () => hint?.Invoke();
-        root.Q<Button>("submit-button").clicked += () => check?.Invoke();
+        Button deleteButton = root.Q<Button>("delete-button");
+        Button hintButton = root.Q<Button>("hint-button");
+        Button submitButton = root.Q<Button>("submit-button");
+        Debug.Log($"[CrossBound][View] Buttons: delete={(deleteButton != null ? "ok" : "NULL")}, hint={(hintButton != null ? "ok" : "NULL")}, submit={(submitButton != null ? "ok" : "NULL")}.");
+        if (deleteButton != null) deleteButton.clicked += () => delete?.Invoke();
+        if (hintButton != null) hintButton.clicked += () => hint?.Invoke();
+        if (submitButton != null) submitButton.clicked += () => check?.Invoke();
 
         BuildGrid(select);
+        Debug.Log($"[CrossBound][View] Grid built: {_cells.Count} cells for {_state.Width}x{_state.Height}.");
 
         _state.CellUpdated += OnCellUpdated;
         _state.SelectionChanged += OnSelectionChanged;
@@ -57,6 +81,8 @@ public sealed class CrosswordGameView : MonoBehaviour
         RefreshAllCells();
         OnSelectionChanged();
         _score.text = _state.Score.ToString();
+        Debug.Log("[CrossBound][View] Build finished.");
+        return true;
     }
 
     // ----------------------------- Grid -----------------------------
