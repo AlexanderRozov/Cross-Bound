@@ -5,6 +5,9 @@ Shader "Hidden/CrossBound/Cell"
 {
     Properties
     {
+        // Declared only so uGUI can bind its default texture to this material
+        // (CanvasRenderer assigns _MainTex to every graphic) without warnings.
+        _MainTex ("Texture", 2D) = "white" {}
         _FillColor ("Fill Color", Color) = (0.992, 0.984, 0.957, 1)
         _BorderColor ("Border Color", Color) = (0.125, 0.102, 0.070, 1)
         _BorderWidth ("Border Width", Range(0, 0.25)) = 0.055

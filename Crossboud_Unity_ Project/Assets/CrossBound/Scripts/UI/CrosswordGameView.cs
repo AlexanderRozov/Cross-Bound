@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -7,7 +8,10 @@ using UnityEngine.UI;
 /// <summary>
 /// Newspaper-styled crossword screen. uGUI with two custom shaders: a paper
 /// background (grain, fibers, stains, vignette) and cells with a rough ink
-/// letterpress border. Cells are placed with absolute RectTransform coordinates —
+/// letterpress border. PT Serif (regular/bold) renders all text. The grid sits
+/// next to newspaper-style clue columns and an on-screen letter keyboard, so the
+/// puzzle is fully playable with the mouse; physical keyboard input goes through
+/// InputController. All UI is placed with absolute RectTransform coordinates —
 /// no flex layout — so the grid geometry is exact on any resolution and the
 /// layout re-fits itself when the screen size or orientation changes.
 /// </summary>
@@ -15,9 +19,13 @@ public sealed class CrosswordGameView : MonoBehaviour
 {
     private const float ReferenceWidth = 1920f;
     private const float ReferenceHeight = 1080f;
-    private const float ChromeHeight = 250f;   // title + question block at the top
-    private const float FooterHeight = 140f;   // button bar at the bottom
-    private const float CellOverlap = 4f;      // neighbours overdraw so shared borders merge
+    private const float ChromeHeight = 250f;            // title + question block at the top
+    private const float ButtonBarBottom = 44f;          // bottom bar of action buttons
+    private const float ButtonBarHeight = 64f;
+    private const float KeyboardGap = 14f;              // between buttons and the keyboard
+    private const float FooterMargin = 16f;             // breathing room above the keyboard
+    private const float CellOverlap = 4f;               // neighbours overdraw so shared borders merge
+    private const float PanelMargin = 24f;
 
     private static readonly Color Ink = new Color32(0x20, 0x1A, 0x12, 0xFF);
     private static readonly Color InkSoft = new Color32(0x55, 0x4B, 0x3B, 0xFF);
@@ -33,10 +41,11 @@ public sealed class CrosswordGameView : MonoBehaviour
     private Action _onRestart;
     private CanvasScaler _scaler;
     private RectTransform _canvasRect;
-    private Text _number, _question, _score;
+    private TextMeshProUGUI _number, _question, _score;
     private RectTransform _gridRoot;
     private Material _paperMat, _cellMat, _frameMat;
-    private Font _font;
+    private CrosswordClueListView _clues;
+    private OnScreenKeyboardView _keyboard;
     private float _pitch = 54f;
     private Vector2 _lastScreenSize;
     private GameObject _winOverlay;
@@ -47,8 +56,8 @@ public sealed class CrosswordGameView : MonoBehaviour
         public RectTransform Rect;
         public Image Background;
         public GameObject Frame;
-        public Text Number;
-        public Text Letter;
+        public TextMeshProUGUI Number;
+        public TextMeshProUGUI Letter;
     }
 
     private readonly Dictionary<Vector2Int, CellView> _cells = new();
@@ -60,7 +69,6 @@ public sealed class CrosswordGameView : MonoBehaviour
         _onRestart = restart;
         Debug.Log("[CrossBound][View] Build started (uGUI newspaper renderer).");
 
-        _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         _paperMat = CreateMaterial("Hidden/CrossBound/Paper");
         _cellMat = CreateMaterial("Hidden/CrossBound/Cell");
         if (_paperMat == null || _cellMat == null)
@@ -78,6 +86,8 @@ public sealed class CrosswordGameView : MonoBehaviour
         BuildChrome();
         BuildBottomBar(delete, hint, check);
         BuildGrid(select);
+        BuildClues();
+        BuildKeyboard();
         _lastScreenSize = Vector2.zero; // forces a full layout pass below
         ApplyLayout();
 
@@ -147,18 +157,18 @@ public sealed class CrosswordGameView : MonoBehaviour
         ruleRect.anchoredPosition = new Vector2(0f, -98f);
         ruleRect.sizeDelta = new Vector2(700f, 3f);
 
-        Text scoreCaption = CreateText("ScoreCaption", _canvasRect, "ОЧКИ", 20, InkSoft, false,
+        TextMeshProUGUI scoreCaption = CreateText("ScoreCaption", _canvasRect, "ОЧКИ", 20, InkSoft, false,
             new Vector2(1f, 1f), new Vector2(-70f, -36f), new Vector2(120f, 30f));
-        scoreCaption.alignment = TextAnchor.MiddleRight;
+        scoreCaption.alignment = TextAlignmentOptions.Right;
         _score = CreateText("Score", _canvasRect, "0", 34, Ink, true,
             new Vector2(1f, 1f), new Vector2(-70f, -72f), new Vector2(120f, 44f));
-        _score.alignment = TextAnchor.MiddleRight;
+        _score.alignment = TextAlignmentOptions.Right;
 
         _number = CreateText("QuestionNumber", _canvasRect, string.Empty, 24, InkSoft, true,
             new Vector2(0.5f, 1f), new Vector2(0f, -118f), new Vector2(900f, 34f));
         _question = CreateText("Question", _canvasRect, "Загрузка кроссворда…", 28, Ink, false,
             new Vector2(0.5f, 1f), new Vector2(0f, -156f), new Vector2(1500f, 84f));
-        _question.horizontalOverflow = HorizontalWrapMode.Wrap;
+        _question.textWrappingMode = TextWrappingModes.Normal;
     }
 
     private void BuildBottomBar(Action delete, Action hint, Action check)
@@ -175,8 +185,8 @@ public sealed class CrosswordGameView : MonoBehaviour
         RectTransform rect = (RectTransform)go.transform;
         rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
         rect.pivot = new Vector2(0.5f, 0f);
-        rect.anchoredPosition = new Vector2(x, 44f);
-        rect.sizeDelta = new Vector2(250f, 64f);
+        rect.anchoredPosition = new Vector2(x, ButtonBarBottom);
+        rect.sizeDelta = new Vector2(250f, ButtonBarHeight);
 
         Image image = go.GetComponent<Image>();
         image.material = _cellMat;
@@ -192,7 +202,8 @@ public sealed class CrosswordGameView : MonoBehaviour
         button.colors = colors;
         button.onClick.AddListener(() => onClick?.Invoke());
 
-        Text text = CreateText("Label", rect, label, 22, Ink, true, new Vector2(0.5f, 0.5f), Vector2.zero, rect.sizeDelta);
+        TextMeshProUGUI text = CreateText("Label", rect, label, 22, Ink, true, new Vector2(0.5f, 0.5f), Vector2.zero, rect.sizeDelta);
+        text.raycastTarget = false;
         Stretch(text.rectTransform);
     }
 
@@ -239,7 +250,7 @@ public sealed class CrosswordGameView : MonoBehaviour
             {
                 view.Number = CreateText("Number", view.Rect, number.ToString(), 12, InkSoft, false,
                     new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
-                view.Number.alignment = TextAnchor.UpperLeft;
+                view.Number.alignment = TextAlignmentOptions.TopLeft;
                 view.Number.raycastTarget = false;
             }
 
@@ -250,6 +261,16 @@ public sealed class CrosswordGameView : MonoBehaviour
 
             _cells[new Vector2Int(x, y)] = view;
         }
+    }
+
+    private void BuildClues()
+    {
+        _clues = new CrosswordClueListView(_canvasRect, _state);
+    }
+
+    private void BuildKeyboard()
+    {
+        _keyboard = new OnScreenKeyboardView(_canvasRect, _cellMat);
     }
 
     // ----------------------------- Adaptive layout -----------------------------
@@ -264,7 +285,7 @@ public sealed class CrosswordGameView : MonoBehaviour
         }
     }
 
-    /// <summary>Re-fits canvas scaling and the grid for the current resolution and orientation.</summary>
+    /// <summary>Re-fits canvas scaling and all panels for the current resolution and orientation.</summary>
     private void ApplyLayout()
     {
         if (_state == null || _gridRoot == null) return;
@@ -276,14 +297,50 @@ public sealed class CrosswordGameView : MonoBehaviour
 
         float unitsW = landscape ? ReferenceHeight * aspect : ReferenceWidth;
         float unitsH = landscape ? ReferenceHeight : ReferenceWidth / aspect;
-        float availW = unitsW * 0.94f;
-        float availH = unitsH - ChromeHeight - FooterHeight;
 
-        _pitch = Mathf.Clamp(Mathf.Floor(Mathf.Min(availW / _state.Width, availH / _state.Height)), 20f, 90f);
+        // Footer: action buttons hug the bottom, the keyboard floats above them.
+        float keyboardBottom = ButtonBarBottom + ButtonBarHeight + KeyboardGap;
+        float keyboardHeight = _keyboard != null ? _keyboard.Layout(unitsW * 0.92f, keyboardBottom) : 0f;
+        float footerHeight = keyboardBottom + keyboardHeight + FooterMargin;
+
+        float zoneTop = unitsH / 2f - ChromeHeight;
+        float zoneBottom = -unitsH / 2f + footerHeight;
+        float zoneHeight = zoneTop - zoneBottom;
+        float zoneCenterY = (zoneTop + zoneBottom) / 2f;
+
+        if (landscape)
+        {
+            // Grid on the left, newspaper clue columns on the right.
+            float clueWidth = Mathf.Clamp(unitsW * 0.36f, 340f, 640f);
+            float gridAvailW = unitsW - clueWidth - 3f * PanelMargin;
+            _pitch = Mathf.Clamp(Mathf.Floor(Mathf.Min(gridAvailW / _state.Width, zoneHeight * 0.96f / _state.Height)), 20f, 90f);
+            // Center the grid inside the left zone (it spans -unitsW/2 + margin .. unitsW/2 - clueWidth - 2*margin).
+            float gridCenterX = ((-unitsW / 2f + PanelMargin) + (unitsW / 2f - clueWidth - 2f * PanelMargin)) / 2f;
+            _gridRoot.anchoredPosition = new Vector2(gridCenterX, zoneCenterY);
+            _clues?.Layout(
+                new Vector2(unitsW / 2f - clueWidth / 2f - PanelMargin, zoneCenterY),
+                new Vector2(clueWidth, zoneHeight * 0.96f));
+        }
+        else
+        {
+            // Portrait: grid under the question block, clue columns below it.
+            _pitch = Mathf.Clamp(Mathf.Floor(unitsW * 0.94f / _state.Width), 20f, 90f);
+            float maxGridH = zoneHeight * 0.55f;
+            if (_pitch * _state.Height > maxGridH)
+                _pitch = Mathf.Max(20f, Mathf.Floor(maxGridH / _state.Height));
+            float gridH = _pitch * _state.Height;
+            float gridTop = unitsH / 2f - ChromeHeight - 12f;
+            _gridRoot.anchoredPosition = new Vector2(0f, gridTop - gridH / 2f);
+
+            float clueTop = gridTop - gridH - 16f;
+            float clueBottom = zoneBottom + 8f;
+            float clueH = Mathf.Max(160f, clueTop - clueBottom);
+            _clues?.Layout(
+                new Vector2(0f, (clueTop + clueBottom) / 2f),
+                new Vector2(unitsW * 0.94f, clueH));
+        }
+
         _gridRoot.sizeDelta = new Vector2(_pitch * _state.Width, _pitch * _state.Height);
-
-        float zoneCenterY = (unitsH / 2f - ChromeHeight + (-unitsH / 2f + FooterHeight)) / 2f;
-        _gridRoot.anchoredPosition = new Vector2(0f, zoneCenterY);
 
         foreach (CellView cell in _cells.Values)
         {
@@ -387,8 +444,9 @@ public sealed class CrosswordGameView : MonoBehaviour
         colors.pressedColor = ButtonPressed;
         restartButton.colors = colors;
         restartButton.onClick.AddListener(() => _onRestart?.Invoke());
-        Text restartText = CreateText("Label", restartRect, "ИГРАТЬ СНОВА", 22, Ink, true,
+        TextMeshProUGUI restartText = CreateText("Label", restartRect, "ИГРАТЬ СНОВА", 22, Ink, true,
             new Vector2(0.5f, 0.5f), Vector2.zero, restartRect.sizeDelta);
+        restartText.raycastTarget = false;
         Stretch(restartText.rectTransform);
 
         Debug.Log($"[CrossBound][View] Win overlay shown (score {score}, best {bestScore}).");
@@ -405,19 +463,19 @@ public sealed class CrosswordGameView : MonoBehaviour
         return image;
     }
 
-    private Text CreateText(string name, Transform parent, string content, int fontSize, Color color, bool bold, Vector2 anchor, Vector2 position, Vector2 size)
+    private static TextMeshProUGUI CreateText(string name, Transform parent, string content, float fontSize, Color color, bool bold, Vector2 anchor, Vector2 position, Vector2 size)
     {
-        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Text));
+        GameObject go = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
         go.transform.SetParent(parent, false);
-        Text text = go.GetComponent<Text>();
-        text.font = _font;
+        TextMeshProUGUI text = go.GetComponent<TextMeshProUGUI>();
+        text.font = bold ? NewspaperFonts.Bold : NewspaperFonts.Regular;
         text.text = content;
         text.fontSize = fontSize;
-        text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
         text.color = color;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.horizontalOverflow = HorizontalWrapMode.Overflow;
-        text.verticalOverflow = VerticalWrapMode.Overflow;
+        text.alignment = TextAlignmentOptions.Center;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.margin = Vector4.zero;
         RectTransform rect = text.rectTransform;
         rect.anchorMin = rect.anchorMax = anchor;
         rect.pivot = anchor;

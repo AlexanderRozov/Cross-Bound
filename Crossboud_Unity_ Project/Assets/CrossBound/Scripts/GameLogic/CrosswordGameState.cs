@@ -132,21 +132,33 @@ public sealed class CrosswordGameState
         letter = char.ToUpperInvariant(letter);
         if (letter < 'A' || letter > 'Z') return;
 
-        // Correct cells are locked: retyping them neither changes the cell nor the score.
-        if (Inputs[SelectedX, SelectedY] == Answers[SelectedX, SelectedY])
+        int x = SelectedX, y = SelectedY;
+        if (Inputs[x, y] == Answers[x, y])
         {
-            MoveForward();
-            return;
+            // Correct cells are locked: retyping the same letter just steps forward;
+            // typing a different letter writes through to the next unlocked cell.
+            if (letter == Answers[x, y])
+            {
+                MoveForward();
+                return;
+            }
+            do
+            {
+                MoveForward();
+                if (SelectedX == x && SelectedY == y) return; // word end, nowhere to write
+                x = SelectedX; y = SelectedY;
+            }
+            while (Inputs[x, y] == Answers[x, y]);
         }
 
-        bool wasCorrect = Inputs[SelectedX, SelectedY] != '\0' && Inputs[SelectedX, SelectedY] == Answers[SelectedX, SelectedY];
-        Inputs[SelectedX, SelectedY] = letter;
-        if (letter == Answers[SelectedX, SelectedY] && !wasCorrect)
+        bool wasCorrect = Inputs[x, y] != '\0' && Inputs[x, y] == Answers[x, y];
+        Inputs[x, y] = letter;
+        if (letter == Answers[x, y] && !wasCorrect)
         {
             Score += PointsPerLetter;
             ScoreChanged?.Invoke(Score);
         }
-        CellUpdated?.Invoke(SelectedX, SelectedY);
+        CellUpdated?.Invoke(x, y);
         MoveForward();
         CheckCompletion();
     }

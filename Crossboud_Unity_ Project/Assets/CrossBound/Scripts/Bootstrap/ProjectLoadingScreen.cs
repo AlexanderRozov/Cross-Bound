@@ -1,11 +1,12 @@
 using Cysharp.Threading.Tasks;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
 /// Loading screen shown while the game scene is being prepared. The whole layout
-/// is built from code so the ProjectLoader scene stays asset-free; the palette
-/// mirrors CrosswordGame.uss. Keeps itself visible until
+/// is built from code so the ProjectLoader scene stays asset-free; typography uses
+/// the same PT Serif assets as the crossword screen. Keeps itself visible until
 /// <see cref="CrosswordGameController"/> reports the puzzle is built, then fades
 /// out and disposes itself.
 /// </summary>
@@ -36,7 +37,7 @@ public sealed class ProjectLoadingScreen : MonoBehaviour
     };
 
     private CanvasGroup _canvasGroup;
-    private Text _status, _percent, _tip;
+    private TextMeshProUGUI _status, _percent, _tip;
     private CanvasGroup _tipGroup;
     private RectTransform _barFill;
     private float _dotTimer;
@@ -189,8 +190,6 @@ public sealed class ProjectLoadingScreen : MonoBehaviour
 
     private void BuildUi()
     {
-        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-
         Canvas canvas = gameObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 100;
@@ -204,9 +203,9 @@ public sealed class ProjectLoadingScreen : MonoBehaviour
         Image background = CreateImage("Background", transform, BackgroundColor);
         Stretch(background.rectTransform);
 
-        BuildMiniGrid(font);
-        CreateText("Title", transform, font, "CROSSBOUND", 64, TextColor, true, new Vector2(0f, 40f), new Vector2(1200f, 90f));
-        _status = CreateText("Status", transform, font, "ЗАГРУЗКА", 26, SecondaryColor, false, new Vector2(0f, -30f), new Vector2(800f, 40f));
+        BuildMiniGrid();
+        CreateText("Title", transform, "CROSSBOUND", 64, TextColor, true, new Vector2(0f, 40f), new Vector2(1200f, 90f));
+        _status = CreateText("Status", transform, "ЗАГРУЗКА", 26, SecondaryColor, false, new Vector2(0f, -30f), new Vector2(800f, 40f));
 
         RectTransform track = CreateImage("ProgressTrack", transform, TrackColor).rectTransform;
         track.anchorMin = track.anchorMax = new Vector2(0.5f, 0.5f);
@@ -220,9 +219,9 @@ public sealed class ProjectLoadingScreen : MonoBehaviour
         _barFill.pivot = new Vector2(0f, 0.5f);
         _barFill.sizeDelta = new Vector2(0f, 0f);
 
-        _percent = CreateText("Percent", transform, font, "0%", 24, AccentColor, true, new Vector2(0f, -150f), new Vector2(200f, 36f));
+        _percent = CreateText("Percent", transform, "0%", 24, AccentColor, true, new Vector2(0f, -150f), new Vector2(200f, 36f));
 
-        _tip = CreateText("Tip", transform, font, Tips[0], 20, SecondaryColor, false, new Vector2(0f, 0f), new Vector2(1500f, 60f));
+        _tip = CreateText("Tip", transform, Tips[0], 20, SecondaryColor, false, new Vector2(0f, 0f), new Vector2(1500f, 60f));
         RectTransform tipRect = _tip.rectTransform;
         tipRect.anchorMin = new Vector2(0.5f, 0f);
         tipRect.anchorMax = new Vector2(0.5f, 0f);
@@ -234,7 +233,7 @@ public sealed class ProjectLoadingScreen : MonoBehaviour
     }
 
     /// <summary>Five crossword cells spelling C-R-O-S-S, like the game grid.</summary>
-    private void BuildMiniGrid(Font font)
+    private void BuildMiniGrid()
     {
         RectTransform grid = new GameObject("MiniGrid", typeof(RectTransform)).GetComponent<RectTransform>();
         grid.SetParent(transform, false);
@@ -260,7 +259,7 @@ public sealed class ProjectLoadingScreen : MonoBehaviour
             cell.pivot = new Vector2(0.5f, 0.5f);
             cell.anchoredPosition = new Vector2(x, 0f);
             cell.sizeDelta = new Vector2(64f, 64f);
-            Text letter = CreateText("Letter", cell, font, letters[i].ToString(), 38, CellLetterColor, true, Vector2.zero, new Vector2(64f, 64f));
+            TextMeshProUGUI letter = CreateText("Letter", cell, letters[i].ToString(), 38, CellLetterColor, true, Vector2.zero, new Vector2(64f, 64f));
             Stretch(letter.rectTransform);
         }
     }
@@ -274,19 +273,19 @@ public sealed class ProjectLoadingScreen : MonoBehaviour
         return image;
     }
 
-    private static Text CreateText(string name, Transform parent, Font font, string content, int fontSize, Color color, bool bold, Vector2 position, Vector2 rectSize)
+    private static TextMeshProUGUI CreateText(string name, Transform parent, string content, float fontSize, Color color, bool bold, Vector2 position, Vector2 rectSize)
     {
-        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Text));
+        GameObject go = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
         go.transform.SetParent(parent, false);
-        Text text = go.GetComponent<Text>();
-        text.font = font;
+        TextMeshProUGUI text = go.GetComponent<TextMeshProUGUI>();
+        text.font = bold ? NewspaperFonts.Bold : NewspaperFonts.Regular;
         text.text = content;
         text.fontSize = fontSize;
-        text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
         text.color = color;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.horizontalOverflow = HorizontalWrapMode.Overflow;
-        text.verticalOverflow = VerticalWrapMode.Overflow;
+        text.alignment = TextAlignmentOptions.Center;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.margin = Vector4.zero;
         RectTransform rect = text.rectTransform;
         rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);

@@ -4,6 +4,9 @@ Shader "Hidden/CrossBound/Paper"
 {
     Properties
     {
+        // Declared only so uGUI can bind its default texture to this material
+        // (CanvasRenderer assigns _MainTex to every graphic) without warnings.
+        _MainTex ("Texture", 2D) = "white" {}
         _BaseColor ("Paper Color", Color) = (0.937, 0.906, 0.812, 1)
         _Grain ("Grain", Range(0, 0.2)) = 0.05
         _Fiber ("Fibers", Range(0, 0.2)) = 0.05

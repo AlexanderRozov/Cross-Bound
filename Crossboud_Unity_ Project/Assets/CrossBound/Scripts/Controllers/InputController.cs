@@ -58,6 +58,15 @@ public class InputController : MonoBehaviour
         action.performed += _ => OnNavigate?.Invoke(dx, dy);
     }
 
+    /// <summary>Feeds a letter from the on-screen keyboard through the same pipeline as physical typing.</summary>
+    public void FeedLetter(char value) => HandleTextInput(value);
+
+    /// <summary>Feeds a delete press from the on-screen keyboard.</summary>
+    public void FeedDelete() => OnDelete?.Invoke();
+
+    /// <summary>Feeds a submit press from the on-screen keyboard.</summary>
+    public void FeedSubmit() => OnSubmit?.Invoke();
+
     private void HandleTextInput(char value)
     {
         char letter = TransliterateToLatin(value);
