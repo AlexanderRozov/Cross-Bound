@@ -18,6 +18,6 @@ public class CrosswordDataSO : ScriptableObject
             return data;
         }
         
-        return await new CrosswordContentLoader().LoadAsync(addressableKey, resourcesPath);
+        return await new CrosswordContentLoader().LoadAsync(resourcesPath, addressableKey);
     }
 }

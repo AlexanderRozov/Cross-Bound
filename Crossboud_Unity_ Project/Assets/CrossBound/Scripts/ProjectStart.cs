@@ -1,4 +1,4 @@
-using System.Collections;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -16,6 +16,8 @@ public sealed class ProjectStart : MonoBehaviour
         // bridge alive guarantees that Yandex gameplay and the game loop are started.
         DontDestroyOnLoad(gameObject);
         _loadingScreen = ProjectLoadingScreen.Create();
+        // Survives the whole session and rebuilds the game screen on every (re)load of MainGameScene.
+        CrosswordSceneWatcher.Create();
         Application.logMessageReceived += ForwardUnhandledExceptions;
     }
 
@@ -40,42 +42,50 @@ public sealed class ProjectStart : MonoBehaviour
 
         SceneManager.sceneLoaded += OnStartSceneLoaded;
         Debug.Log($"[CrossBound][Startup] Loading '{_startSceneName}'.");
-        StartCoroutine(LoadGameRoutine());
+        _ = LoadGameAsync();
     }
 
-    private IEnumerator LoadGameRoutine()
+    private async UniTaskVoid LoadGameAsync()
     {
-        AsyncOperation operation = SceneManager.LoadSceneAsync(_startSceneName, LoadSceneMode.Single);
-        if (operation == null)
+        try
         {
-            Debug.LogError($"[CrossBound][Startup] LoadSceneAsync returned null for '{_startSceneName}'.");
-            _loadingScreen?.ShowError("Не удалось запустить загрузку сцены.");
-            yield break;
-        }
+            AsyncOperation operation = SceneManager.LoadSceneAsync(_startSceneName, LoadSceneMode.Single);
+            if (operation == null)
+            {
+                Debug.LogError($"[CrossBound][Startup] LoadSceneAsync returned null for '{_startSceneName}'.");
+                _loadingScreen?.ShowError("Не удалось запустить загрузку сцены.");
+                return;
+            }
 
-        // Hold the scene at the activation gate so the loading screen is always
-        // visible for at least MinDisplaySeconds and progress reaches 100% first.
-        operation.allowSceneActivation = false;
-        float elapsed = 0f;
-        float loggedMilestone = 0f;
-        while (!operation.isDone)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            float progress = Mathf.Clamp01(operation.progress / 0.9f);
-            _loadingScreen?.SetProgress(progress);
-            if (progress >= loggedMilestone + 0.25f)
+            // Hold the scene at the activation gate so the loading screen is always
+            // visible for at least MinDisplaySeconds and progress reaches 100% first.
+            operation.allowSceneActivation = false;
+            float elapsed = 0f;
+            float loggedMilestone = 0f;
+            while (!operation.isDone)
             {
-                loggedMilestone = progress;
-                Debug.Log($"[CrossBound][Startup] Scene load progress: {Mathf.RoundToInt(progress * 100f)}% (elapsed {elapsed:0.0}s).");
+                elapsed += Time.unscaledDeltaTime;
+                float progress = Mathf.Clamp01(operation.progress / 0.9f);
+                _loadingScreen?.SetProgress(progress);
+                if (progress >= loggedMilestone + 0.25f)
+                {
+                    loggedMilestone = progress;
+                    Debug.Log($"[CrossBound][Startup] Scene load progress: {Mathf.RoundToInt(progress * 100f)}% (elapsed {elapsed:0.0}s).");
+                }
+                if (operation.progress >= 0.9f && elapsed >= ProjectLoadingScreen.MinDisplaySeconds)
+                {
+                    Debug.Log($"[CrossBound][Startup] Activation gate passed at {elapsed:0.0}s — activating '{_startSceneName}'.");
+                    operation.allowSceneActivation = true;
+                }
+                await UniTask.Yield();
             }
-            if (operation.progress >= 0.9f && elapsed >= ProjectLoadingScreen.MinDisplaySeconds)
-            {
-                Debug.Log($"[CrossBound][Startup] Activation gate passed at {elapsed:0.0}s — activating '{_startSceneName}'.");
-                operation.allowSceneActivation = true;
-            }
-            yield return null;
+            Debug.Log("[CrossBound][Startup] LoadGameAsync finished (scene active).");
         }
-        Debug.Log("[CrossBound][Startup] LoadGameRoutine finished (scene active).");
+        catch (System.Exception exception)
+        {
+            Debug.LogError($"[CrossBound][Startup] Scene loading crashed: {exception.GetType().Name}: {exception.Message}\n{exception.StackTrace}");
+            _loadingScreen?.ShowError("Сбой при загрузке сцены (см. консоль).");
+        }
     }
 
     private void OnStartSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -83,6 +93,10 @@ public sealed class ProjectStart : MonoBehaviour
         if (scene.name != _startSceneName) return;
         SceneManager.sceneLoaded -= OnStartSceneLoaded;
         Debug.Log($"[CrossBound][Startup] '{scene.name}' loaded. Entering gameplay loop.");
+
+        // The scene watcher also does this, but create the screen right away so
+        // the puzzle starts building before the Yandex calls below return.
+        CrosswordSceneBootstrap.EnsureGameScreen();
 
         YandexGameService yandex = YandexGameInitializer.Instance?.GameService;
         yandex?.MarkGameReady();

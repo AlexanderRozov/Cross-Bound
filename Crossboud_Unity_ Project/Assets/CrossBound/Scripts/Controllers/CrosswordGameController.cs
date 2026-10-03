@@ -46,7 +46,7 @@ public sealed class CrosswordGameController : MonoBehaviour
     private async UniTask InitializeAsync()
     {
         Debug.Log("[CrossBound][Gameplay] Step 1/6: loading crossword content...");
-        CrosswordData data = await new CrosswordContentLoader().LoadAsync("CrosswordQuestions", "CrosswordQuestions");
+        CrosswordData data = await new CrosswordContentLoader().LoadAsync(resourcesPath: "CrosswordQuestions", address: "CrosswordQuestions");
         Debug.Log($"[CrossBound][Gameplay] Step 2/6: content loaded. Questions: {(data?.Questions?.Count ?? -1)}, grid: {data?.gridWidth ?? -1}x{data?.gridHeight ?? -1}.");
 
         List<string> errors = CrosswordDataValidator.Validate(data);

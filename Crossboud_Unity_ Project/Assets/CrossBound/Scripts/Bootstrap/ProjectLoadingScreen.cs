@@ -1,4 +1,4 @@
-using System.Collections;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -41,11 +41,11 @@ public sealed class ProjectLoadingScreen : MonoBehaviour
     private RectTransform _barFill;
     private float _dotTimer;
     private int _dotCount;
-    private float _tipTimer = TipRotationSeconds; // first tip shows immediately
+    private float _tipTimer; // first rotation after a full interval; Tips[0] is already the initial text
     private int _tipIndex;
     private bool _error, _activated, _fading;
     private float _revealTimer;
-    private Coroutine _tipRoutine;
+    private int _tipVersion; // bumped per rotation so an in-flight fade cancels itself
     private float _loggedMilestone;
 
     public static ProjectLoadingScreen Create()
@@ -129,8 +129,7 @@ public sealed class ProjectLoadingScreen : MonoBehaviour
         {
             _tipTimer = 0f;
             _tipIndex = (_tipIndex + 1) % Tips.Length;
-            if (_tipRoutine != null) StopCoroutine(_tipRoutine);
-            _tipRoutine = StartCoroutine(RotateTip(Tips[_tipIndex]));
+            RotateTip(Tips[_tipIndex]);
         }
     }
 
@@ -145,34 +144,40 @@ public sealed class ProjectLoadingScreen : MonoBehaviour
     {
         if (_fading) return;
         _fading = true;
-        StartCoroutine(FadeOut());
+        _ = FadeOutAsync();
     }
 
-    private IEnumerator FadeOut()
+    private async UniTaskVoid FadeOutAsync()
     {
         for (float t = 0f; t < FadeSeconds; t += Time.unscaledDeltaTime)
         {
             _canvasGroup.alpha = 1f - t / FadeSeconds;
-            yield return null;
+            await UniTask.Yield();
         }
+        _canvasGroup.alpha = 0f;
         Debug.Log("[CrossBound][Loader] Loading screen destroyed — the game scene should be visible now.");
         Destroy(gameObject);
     }
 
-    private IEnumerator RotateTip(string text)
+    private void RotateTip(string text) => RotateTipAsync(text, ++_tipVersion).Forget();
+
+    private async UniTask RotateTipAsync(string text, int version)
     {
-        for (float t = 0f; t < 0.15f; t += Time.unscaledDeltaTime)
-        {
-            _tipGroup.alpha = 1f - t / 0.15f;
-            yield return null;
-        }
+        await FadeTip(0f, version);
+        if (version != _tipVersion) return;
         _tip.text = text;
-        for (float t = 0f; t < 0.15f; t += Time.unscaledDeltaTime)
+        await FadeTip(1f, version);
+    }
+
+    private async UniTask FadeTip(float target, int version)
+    {
+        float start = _tipGroup.alpha;
+        for (float t = 0f; t < 0.15f && version == _tipVersion; t += Time.unscaledDeltaTime)
         {
-            _tipGroup.alpha = t / 0.15f;
-            yield return null;
+            _tipGroup.alpha = Mathf.Lerp(start, target, t / 0.15f);
+            await UniTask.Yield();
         }
-        _tipGroup.alpha = 1f;
+        if (version == _tipVersion) _tipGroup.alpha = target;
     }
 
     private void OnDestroy()
