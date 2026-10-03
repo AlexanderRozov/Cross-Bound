@@ -1,77 +1,85 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UIElements;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 /// <summary>
-/// UI Toolkit representation of a crossword. Renders <see cref="CrosswordGameState"/>
-/// and forwards user gestures; it contains no content or platform dependencies.
+/// Newspaper-styled crossword screen. uGUI with two custom shaders: a paper
+/// background (grain, fibers, stains, vignette) and cells with a rough ink
+/// letterpress border. Cells are placed with absolute RectTransform coordinates —
+/// no flex layout — so the grid geometry is exact on any resolution and the
+/// layout re-fits itself when the screen size or orientation changes.
 /// </summary>
 public sealed class CrosswordGameView : MonoBehaviour
 {
-    private const int CellPitch = 42; // cell 40px + 1px margin on each side, matches the USS.
+    private const float ReferenceWidth = 1920f;
+    private const float ReferenceHeight = 1080f;
+    private const float ChromeHeight = 250f;   // title + question block at the top
+    private const float FooterHeight = 140f;   // button bar at the bottom
+    private const float CellOverlap = 4f;      // neighbours overdraw so shared borders merge
 
-    private UIDocument _document;
-    private Label _number, _question, _score;
-    private VisualElement _grid;
+    private static readonly Color Ink = new Color32(0x20, 0x1A, 0x12, 0xFF);
+    private static readonly Color InkSoft = new Color32(0x55, 0x4B, 0x3B, 0xFF);
+    private static readonly Color CardPaper = new Color32(0xFB, 0xF7, 0xEA, 0xFF);
+    private static readonly Color ButtonHover = new Color(0.90f, 0.87f, 0.79f, 1f);
+    private static readonly Color ButtonPressed = new Color(0.82f, 0.79f, 0.70f, 1f);
+    private static readonly Color InWordTint = new Color(1.00f, 0.93f, 0.74f, 1f);
+    private static readonly Color CorrectTint = new Color(0.74f, 0.89f, 0.75f, 1f);
+    private static readonly Color IncorrectTint = new Color(0.93f, 0.70f, 0.66f, 1f);
+    private static readonly Color GoldInk = new Color32(0xA9, 0x7E, 0x2C, 0xFF);
+
     private CrosswordGameState _state;
     private Action _onRestart;
-    private VisualElement _winOverlay;
-    private Label _winScore, _winBest;
-    private readonly Dictionary<Vector2Int, VisualElement> _cells = new();
-    private readonly Dictionary<Vector2Int, Label> _cellLetters = new();
+    private CanvasScaler _scaler;
+    private RectTransform _canvasRect;
+    private Text _number, _question, _score;
+    private RectTransform _gridRoot;
+    private Material _paperMat, _cellMat, _frameMat;
+    private Font _font;
+    private float _pitch = 54f;
+    private Vector2 _lastScreenSize;
+    private GameObject _winOverlay;
 
-    public void Configure(UIDocument document) => _document = document;
+    private sealed class CellView
+    {
+        public int X, Y;
+        public RectTransform Rect;
+        public Image Background;
+        public GameObject Frame;
+        public Text Number;
+        public Text Letter;
+    }
+
+    private readonly Dictionary<Vector2Int, CellView> _cells = new();
 
     /// <summary>Builds the whole screen. Returns false (and logs why) when the UI cannot be constructed.</summary>
     public bool Build(CrosswordGameState state, Action<int, int> select, Action delete, Action hint, Action check, Action restart)
     {
         _state = state ?? throw new ArgumentNullException(nameof(state));
         _onRestart = restart;
+        Debug.Log("[CrossBound][View] Build started (uGUI newspaper renderer).");
 
-        _document ??= GetComponent<UIDocument>();
-        if (_document == null)
+        _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        _paperMat = CreateMaterial("Hidden/CrossBound/Paper");
+        _cellMat = CreateMaterial("Hidden/CrossBound/Cell");
+        if (_paperMat == null || _cellMat == null)
         {
-            Debug.LogError("[CrossBound][View] UIDocument component is MISSING — cannot build UI.");
+            Debug.LogError("[CrossBound][View] Shaders not found (Hidden/CrossBound/Paper, Hidden/CrossBound/Cell) — check Resources/Shaders.");
             return false;
         }
-        VisualElement root = _document.rootVisualElement;
-        if (root == null)
-        {
-            Debug.LogError("[CrossBound][View] UIDocument.rootVisualElement is NULL — the panel was not initialized.");
-            return false;
-        }
-        root.Clear();
-        _winOverlay = null;
+        _frameMat = new Material(_cellMat);
+        _frameMat.SetColor("_FillColor", new Color(0f, 0f, 0f, 0f));
+        _frameMat.SetColor("_BorderColor", GoldInk);
+        _frameMat.SetFloat("_BorderWidth", 0.11f);
 
-        VisualTreeAsset layout = Resources.Load<VisualTreeAsset>("UI/CrosswordGame");
-        Debug.Log($"[CrossBound][View] UXML layout: {(layout != null ? "loaded" : "MISSING — building code fallback")}.");
-        if (layout != null) layout.CloneTree(root); else CreateFallback(root);
-        StyleSheet style = Resources.Load<StyleSheet>("UI/CrosswordGame");
-        Debug.Log($"[CrossBound][View] USS style: {(style != null ? "loaded" : "MISSING")}.");
-        if (style != null) root.styleSheets.Add(style);
-
-        _number = root.Q<Label>("question-number");
-        _question = root.Q<Label>("question");
-        _score = root.Q<Label>("score");
-        _grid = root.Q<VisualElement>("grid-container");
-        Debug.Log($"[CrossBound][View] Elements: question-number={(_number != null ? "ok" : "NULL")}, question={(_question != null ? "ok" : "NULL")}, score={(_score != null ? "ok" : "NULL")}, grid-container={(_grid != null ? "ok" : "NULL")}.");
-        if (_grid == null)
-        {
-            Debug.LogError("[CrossBound][View] 'grid-container' element not found — the crossword grid cannot be built.");
-            return false;
-        }
-
-        Button deleteButton = root.Q<Button>("delete-button");
-        Button hintButton = root.Q<Button>("hint-button");
-        Button submitButton = root.Q<Button>("submit-button");
-        Debug.Log($"[CrossBound][View] Buttons: delete={(deleteButton != null ? "ok" : "NULL")}, hint={(hintButton != null ? "ok" : "NULL")}, submit={(submitButton != null ? "ok" : "NULL")}.");
-        if (deleteButton != null) deleteButton.clicked += () => delete?.Invoke();
-        if (hintButton != null) hintButton.clicked += () => hint?.Invoke();
-        if (submitButton != null) submitButton.clicked += () => check?.Invoke();
-
+        EnsureEventSystem();
+        BuildCanvas();
+        BuildChrome();
+        BuildBottomBar(delete, hint, check);
         BuildGrid(select);
-        Debug.Log($"[CrossBound][View] Grid built: {_cells.Count} cells for {_state.Width}x{_state.Height}.");
+        _lastScreenSize = Vector2.zero; // forces a full layout pass below
+        ApplyLayout();
 
         _state.CellUpdated += OnCellUpdated;
         _state.SelectionChanged += OnSelectionChanged;
@@ -79,10 +87,113 @@ public sealed class CrosswordGameView : MonoBehaviour
         _state.QuestionChanged += OnQuestionChanged;
 
         RefreshAllCells();
-        OnSelectionChanged();
         _score.text = _state.Score.ToString();
-        Debug.Log("[CrossBound][View] Build finished.");
+        Debug.Log($"[CrossBound][View] Build finished: {_cells.Count} cells for {_state.Width}x{_state.Height}.");
         return true;
+    }
+
+    private static Material CreateMaterial(string shaderName)
+    {
+        Shader shader = Shader.Find(shaderName);
+        if (shader == null)
+            Debug.LogError($"[CrossBound][View] Shader '{shaderName}' not found.");
+        return shader != null ? new Material(shader) : null;
+    }
+
+    // The project runs on the new Input System only; a scene StandaloneInputModule
+    // cannot feed uGUI there, so wire up the module that actually works.
+    private static void EnsureEventSystem()
+    {
+        EventSystem es = EventSystem.current;
+        if (es == null)
+            es = new GameObject("EventSystem", typeof(EventSystem)).GetComponent<EventSystem>();
+        StandaloneInputModule legacy = es.GetComponent<StandaloneInputModule>();
+        if (legacy != null)
+            legacy.enabled = false;
+        if (es.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>() == null)
+            es.gameObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+    }
+
+    // ----------------------------- Static layout -----------------------------
+
+    private void BuildCanvas()
+    {
+        GameObject canvasGo = new GameObject("CrosswordCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        canvasGo.transform.SetParent(transform, false);
+        Canvas canvas = canvasGo.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 0;
+        _scaler = canvasGo.GetComponent<CanvasScaler>();
+        _scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        _scaler.referenceResolution = new Vector2(ReferenceWidth, ReferenceHeight);
+        _scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        _canvasRect = (RectTransform)canvasGo.transform;
+
+        Image paper = CreateImage("Paper", _canvasRect, Color.white);
+        paper.material = _paperMat;
+        Stretch(paper.rectTransform);
+    }
+
+    private void BuildChrome()
+    {
+        CreateText("Title", _canvasRect, "К Р О С С В О Р Д", 46, Ink, true,
+            new Vector2(0.5f, 1f), new Vector2(0f, -26f), new Vector2(1200f, 64f));
+
+        Image rule = CreateImage("TitleRule", _canvasRect, Ink);
+        rule.raycastTarget = false;
+        RectTransform ruleRect = rule.rectTransform;
+        ruleRect.anchorMin = ruleRect.anchorMax = new Vector2(0.5f, 1f);
+        ruleRect.pivot = new Vector2(0.5f, 0.5f);
+        ruleRect.anchoredPosition = new Vector2(0f, -98f);
+        ruleRect.sizeDelta = new Vector2(700f, 3f);
+
+        Text scoreCaption = CreateText("ScoreCaption", _canvasRect, "ОЧКИ", 20, InkSoft, false,
+            new Vector2(1f, 1f), new Vector2(-70f, -36f), new Vector2(120f, 30f));
+        scoreCaption.alignment = TextAnchor.MiddleRight;
+        _score = CreateText("Score", _canvasRect, "0", 34, Ink, true,
+            new Vector2(1f, 1f), new Vector2(-70f, -72f), new Vector2(120f, 44f));
+        _score.alignment = TextAnchor.MiddleRight;
+
+        _number = CreateText("QuestionNumber", _canvasRect, string.Empty, 24, InkSoft, true,
+            new Vector2(0.5f, 1f), new Vector2(0f, -118f), new Vector2(900f, 34f));
+        _question = CreateText("Question", _canvasRect, "Загрузка кроссворда…", 28, Ink, false,
+            new Vector2(0.5f, 1f), new Vector2(0f, -156f), new Vector2(1500f, 84f));
+        _question.horizontalOverflow = HorizontalWrapMode.Wrap;
+    }
+
+    private void BuildBottomBar(Action delete, Action hint, Action check)
+    {
+        CreateButton("DeleteButton", _canvasRect, "УДАЛИТЬ", -284f, delete);
+        CreateButton("HintButton", _canvasRect, "ПОДСКАЗКА", 0f, hint);
+        CreateButton("SubmitButton", _canvasRect, "ПРОВЕРИТЬ", 284f, check);
+    }
+
+    private void CreateButton(string name, Transform parent, string label, float x, Action onClick)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+        RectTransform rect = (RectTransform)go.transform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.anchoredPosition = new Vector2(x, 44f);
+        rect.sizeDelta = new Vector2(250f, 64f);
+
+        Image image = go.GetComponent<Image>();
+        image.material = _cellMat;
+        image.color = CardPaper;
+
+        Button button = go.GetComponent<Button>();
+        button.targetGraphic = image;
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = ButtonHover;
+        colors.pressedColor = ButtonPressed;
+        colors.selectedColor = Color.white;
+        button.colors = colors;
+        button.onClick.AddListener(() => onClick?.Invoke());
+
+        Text text = CreateText("Label", rect, label, 22, Ink, true, new Vector2(0.5f, 0.5f), Vector2.zero, rect.sizeDelta);
+        Stretch(text.rectTransform);
     }
 
     // ----------------------------- Grid -----------------------------
@@ -90,84 +201,112 @@ public sealed class CrosswordGameView : MonoBehaviour
     private void BuildGrid(Action<int, int> select)
     {
         _cells.Clear();
-        _cellLetters.Clear();
-        _grid.Clear();
-        _grid.style.width = _state.Width * CellPitch;
-        _grid.style.height = _state.Height * CellPitch;
+        GameObject gridGo = new GameObject("Grid", typeof(RectTransform));
+        _gridRoot = (RectTransform)gridGo.transform;
+        _gridRoot.SetParent(_canvasRect, false);
+        _gridRoot.anchorMin = _gridRoot.anchorMax = new Vector2(0.5f, 0.5f);
+        _gridRoot.pivot = new Vector2(0.5f, 0.5f);
 
         for (int y = 0; y < _state.Height; y++)
         for (int x = 0; x < _state.Width; x++)
         {
-            VisualElement cell = new VisualElement { name = $"cell-{x}-{y}" };
-            cell.AddToClassList("crossword-cell");
-
             if (!_state.HasAnswer(x, y))
-            {
-                cell.AddToClassList("blocked");
-            }
-            else
-            {
-                int number = _state.GetCellNumber(x, y);
-                if (number > 0)
-                    cell.Add(new Label(number.ToString()) { name = "cell-number" });
-                Label letter = new Label { name = "cell-letter" };
-                cell.Add(letter);
-                _cellLetters[new Vector2Int(x, y)] = letter;
+                continue;
 
-                int cx = x, cy = y;
-                cell.RegisterCallback<ClickEvent>(_ => select?.Invoke(cx, cy));
+            GameObject cellGo = new GameObject($"Cell-{x}-{y}", typeof(RectTransform), typeof(Image), typeof(Button));
+            cellGo.transform.SetParent(_gridRoot, false);
+            CellView view = new CellView { X = x, Y = y, Rect = (RectTransform)cellGo.transform };
+
+            view.Background = cellGo.GetComponent<Image>();
+            view.Background.material = _cellMat;
+            view.Background.color = Color.white;
+
+            Button button = cellGo.GetComponent<Button>();
+            button.targetGraphic = view.Background;
+            button.transition = Selectable.Transition.None;
+            int cx = x, cy = y;
+            button.onClick.AddListener(() => select?.Invoke(cx, cy));
+
+            Image frame = CreateImage("Frame", view.Rect, Color.white);
+            frame.material = _frameMat;
+            frame.raycastTarget = false;
+            Stretch(frame.rectTransform);
+            view.Frame = frame.gameObject;
+            view.Frame.SetActive(false);
+
+            int number = _state.GetCellNumber(x, y);
+            if (number > 0)
+            {
+                view.Number = CreateText("Number", view.Rect, number.ToString(), 12, InkSoft, false,
+                    new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
+                view.Number.alignment = TextAnchor.UpperLeft;
+                view.Number.raycastTarget = false;
             }
 
-            _grid.Add(cell);
-            _cells[new Vector2Int(x, y)] = cell;
+            view.Letter = CreateText("Letter", view.Rect, string.Empty, 28, Ink, true,
+                new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            view.Letter.raycastTarget = false;
+            Stretch(view.Letter.rectTransform);
+
+            _cells[new Vector2Int(x, y)] = view;
         }
     }
 
-    private void RefreshAllCells()
+    // ----------------------------- Adaptive layout -----------------------------
+
+    private void Update()
     {
-        for (int y = 0; y < _state.Height; y++)
-        for (int x = 0; x < _state.Width; x++)
-            UpdateCell(x, y);
+        Vector2 size = new Vector2(Screen.width, Screen.height);
+        if (size != _lastScreenSize)
+        {
+            _lastScreenSize = size;
+            ApplyLayout();
+        }
+    }
+
+    /// <summary>Re-fits canvas scaling and the grid for the current resolution and orientation.</summary>
+    private void ApplyLayout()
+    {
+        if (_state == null || _gridRoot == null) return;
+
+        float aspect = (float)Screen.width / Mathf.Max(1, Screen.height);
+        bool landscape = aspect >= 1f;
+        // Landscape screens are height-constrained, portrait width-constrained.
+        _scaler.matchWidthOrHeight = landscape ? 1f : 0f;
+
+        float unitsW = landscape ? ReferenceHeight * aspect : ReferenceWidth;
+        float unitsH = landscape ? ReferenceHeight : ReferenceWidth / aspect;
+        float availW = unitsW * 0.94f;
+        float availH = unitsH - ChromeHeight - FooterHeight;
+
+        _pitch = Mathf.Clamp(Mathf.Floor(Mathf.Min(availW / _state.Width, availH / _state.Height)), 20f, 90f);
+        _gridRoot.sizeDelta = new Vector2(_pitch * _state.Width, _pitch * _state.Height);
+
+        float zoneCenterY = (unitsH / 2f - ChromeHeight + (-unitsH / 2f + FooterHeight)) / 2f;
+        _gridRoot.anchoredPosition = new Vector2(0f, zoneCenterY);
+
+        foreach (CellView cell in _cells.Values)
+        {
+            cell.Rect.pivot = new Vector2(0.5f, 0.5f);
+            cell.Rect.anchorMin = cell.Rect.anchorMax = new Vector2(0f, 1f);
+            cell.Rect.anchoredPosition = new Vector2(cell.X * _pitch + _pitch / 2f, -(cell.Y * _pitch + _pitch / 2f));
+            cell.Rect.sizeDelta = new Vector2(_pitch + CellOverlap, _pitch + CellOverlap);
+            cell.Letter.fontSize = Mathf.RoundToInt(_pitch * 0.52f);
+            if (cell.Number != null)
+            {
+                cell.Number.fontSize = Mathf.RoundToInt(_pitch * 0.20f);
+                cell.Number.rectTransform.pivot = new Vector2(0f, 1f);
+                cell.Number.rectTransform.anchorMin = cell.Number.rectTransform.anchorMax = new Vector2(0f, 1f);
+                cell.Number.rectTransform.anchoredPosition = new Vector2(_pitch * 0.06f, -_pitch * 0.02f);
+                cell.Number.rectTransform.sizeDelta = new Vector2(_pitch * 0.5f, _pitch * 0.32f);
+            }
+        }
     }
 
     // ----------------------------- State subscriptions -----------------------------
 
-    private void OnCellUpdated(int x, int y) => UpdateCell(x, y);
-
-    private void UpdateCell(int x, int y)
-    {
-        Vector2Int key = new Vector2Int(x, y);
-        if (!_cells.TryGetValue(key, out VisualElement cell)) return;
-
-        char input = _state.GetInput(x, y);
-        bool hasLetter = input != '\0';
-        bool correct = _state.IsCorrect(x, y);
-
-        if (_cellLetters.TryGetValue(key, out Label letter))
-            letter.text = hasLetter ? input.ToString() : string.Empty;
-
-        cell.EnableInClassList("correct", correct);
-        cell.EnableInClassList("incorrect", hasLetter && !correct);
-    }
-
-    private void OnSelectionChanged()
-    {
-        foreach (VisualElement cell in _cells.Values)
-            cell.RemoveFromClassList("selected");
-
-        if (_state == null || _state.SelectedX < 0) return;
-
-        for (int y = 0; y < _state.Height; y++)
-        for (int x = 0; x < _state.Width; x++)
-        {
-            VisualElement cell = _cells[new Vector2Int(x, y)];
-            bool inWord = _state.IsCellInCurrentWord(x, y);
-            cell.EnableInClassList("in-word", inWord && !_state.IsSelected(x, y));
-        }
-
-        _cells[new Vector2Int(_state.SelectedX, _state.SelectedY)].AddToClassList("selected");
-    }
-
+    private void OnCellUpdated(int x, int y) => RefreshCell(x, y);
+    private void OnSelectionChanged() => RefreshAllCells();
     private void OnScoreChanged(int score) => _score.text = score.ToString();
 
     private void OnQuestionChanged(CrosswordQuestion question, int number)
@@ -176,70 +315,122 @@ public sealed class CrosswordGameView : MonoBehaviour
         _question.text = question.question;
     }
 
+    private void RefreshAllCells()
+    {
+        foreach (CellView cell in _cells.Values)
+            RefreshCell(cell.X, cell.Y);
+    }
+
+    private void RefreshCell(int x, int y)
+    {
+        if (!_cells.TryGetValue(new Vector2Int(x, y), out CellView cell)) return;
+
+        char input = _state.GetInput(x, y);
+        cell.Letter.text = input != '\0' ? input.ToString() : string.Empty;
+
+        bool selected = _state.IsSelected(x, y);
+        cell.Frame.SetActive(selected);
+
+        Color tint = Color.white;
+        if (_state.IsCorrect(x, y)) tint = CorrectTint;
+        else if (input != '\0') tint = IncorrectTint;
+        else if (selected || _state.IsCellInCurrentWord(x, y)) tint = InWordTint;
+        cell.Background.color = tint;
+    }
+
     // ----------------------------- Win overlay -----------------------------
 
     public void ShowCompleted(int score, int bestScore)
     {
         if (_winOverlay != null) return;
 
-        VisualElement root = _document.rootVisualElement;
-        _winOverlay = new VisualElement { name = "win-overlay" };
-        _winOverlay.AddToClassList("win-overlay");
+        _winOverlay = new GameObject("WinOverlay", typeof(RectTransform), typeof(Image));
+        _winOverlay.transform.SetParent(_canvasRect, false);
+        Stretch((RectTransform)_winOverlay.transform);
+        Image scrim = _winOverlay.GetComponent<Image>();
+        scrim.color = new Color(0.12f, 0.10f, 0.06f, 0.72f);
 
-        VisualElement panel = new VisualElement();
-        panel.AddToClassList("win-panel");
-        _winOverlay.Add(panel);
+        GameObject card = new GameObject("Card", typeof(RectTransform), typeof(Image));
+        card.transform.SetParent(_winOverlay.transform, false);
+        RectTransform cardRect = (RectTransform)card.transform;
+        cardRect.anchorMin = cardRect.anchorMax = new Vector2(0.5f, 0.5f);
+        cardRect.pivot = new Vector2(0.5f, 0.5f);
+        cardRect.sizeDelta = new Vector2(560f, 420f);
+        Image cardImage = card.GetComponent<Image>();
+        cardImage.material = _cellMat;
+        cardImage.color = CardPaper;
+        cardImage.raycastTarget = true;
 
-        panel.Add(new Label("ПОЗДРАВЛЯЕМ!") { name = "win-title" });
-        panel.Add(new Label("Кроссворд решён") { name = "win-text" });
-        _winScore = new Label($"Очки: {score}") { name = "win-score" };
-        _winBest = new Label($"Рекорд: {bestScore}") { name = "win-best" };
-        panel.Add(_winScore);
-        panel.Add(_winBest);
+        CreateText("WinTitle", cardRect, "ПОЗДРАВЛЯЕМ!", 40, Ink, true,
+            new Vector2(0.5f, 0.5f), new Vector2(0f, 130f), new Vector2(500f, 56f));
+        CreateText("WinText", cardRect, "Кроссворд решён", 24, InkSoft, false,
+            new Vector2(0.5f, 0.5f), new Vector2(0f, 82f), new Vector2(500f, 36f));
+        CreateText("WinScore", cardRect, $"Очки: {score}", 30, Ink, true,
+            new Vector2(0.5f, 0.5f), new Vector2(0f, 26f), new Vector2(500f, 44f));
+        CreateText("WinBest", cardRect, $"Рекорд: {bestScore}", 20, InkSoft, false,
+            new Vector2(0.5f, 0.5f), new Vector2(0f, -14f), new Vector2(500f, 30f));
 
-        Button restart = new Button(() => _onRestart?.Invoke()) { text = "ИГРАТЬ СНОВА" };
-        restart.name = "restart-button";
-        panel.Add(restart);
+        GameObject restart = new GameObject("RestartButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        restart.transform.SetParent(cardRect, false);
+        RectTransform restartRect = (RectTransform)restart.transform;
+        restartRect.anchorMin = restartRect.anchorMax = new Vector2(0.5f, 0.5f);
+        restartRect.pivot = new Vector2(0.5f, 0.5f);
+        restartRect.anchoredPosition = new Vector2(0f, -118f);
+        restartRect.sizeDelta = new Vector2(280f, 66f);
+        Image restartImage = restart.GetComponent<Image>();
+        restartImage.material = _cellMat;
+        restartImage.color = CardPaper;
+        Button restartButton = restart.GetComponent<Button>();
+        restartButton.targetGraphic = restartImage;
+        ColorBlock colors = restartButton.colors;
+        colors.highlightedColor = ButtonHover;
+        colors.pressedColor = ButtonPressed;
+        restartButton.colors = colors;
+        restartButton.onClick.AddListener(() => _onRestart?.Invoke());
+        Text restartText = CreateText("Label", restartRect, "ИГРАТЬ СНОВА", 22, Ink, true,
+            new Vector2(0.5f, 0.5f), Vector2.zero, restartRect.sizeDelta);
+        Stretch(restartText.rectTransform);
 
-        root.Add(_winOverlay);
-
-        // Small entrance animation.
-        panel.AddToClassList("win-panel-hidden");
-        panel.schedule.Execute(() => panel.RemoveFromClassList("win-panel-hidden")).StartingIn(50);
+        Debug.Log($"[CrossBound][View] Win overlay shown (score {score}, best {bestScore}).");
     }
 
-    // ----------------------------- Fallback layout (no UXML) -----------------------------
+    // ----------------------------- Helpers -----------------------------
 
-    private static void CreateFallback(VisualElement root)
+    private Image CreateImage(string name, Transform parent, Color color)
     {
-        VisualElement screen = new VisualElement { name = "root" };
-        screen.AddToClassList("game-screen");
+        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image));
+        go.transform.SetParent(parent, false);
+        Image image = go.GetComponent<Image>();
+        image.color = color;
+        return image;
+    }
 
-        VisualElement topBar = new VisualElement();
-        topBar.AddToClassList("top-bar");
-        topBar.Add(new Label("1") { name = "question-number" });
-        Label caption = new Label("ОЧКИ");
-        caption.AddToClassList("score-caption");
-        topBar.Add(caption);
-        Label score = new Label("0") { name = "score" };
-        score.AddToClassList("score");
-        topBar.Add(score);
-        screen.Add(topBar);
+    private Text CreateText(string name, Transform parent, string content, int fontSize, Color color, bool bold, Vector2 anchor, Vector2 position, Vector2 size)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Text));
+        go.transform.SetParent(parent, false);
+        Text text = go.GetComponent<Text>();
+        text.font = _font;
+        text.text = content;
+        text.fontSize = fontSize;
+        text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+        text.color = color;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.horizontalOverflow = HorizontalWrapMode.Overflow;
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+        RectTransform rect = text.rectTransform;
+        rect.anchorMin = rect.anchorMax = anchor;
+        rect.pivot = anchor;
+        rect.anchoredPosition = position;
+        rect.sizeDelta = size;
+        return text;
+    }
 
-        VisualElement questionPanel = new VisualElement();
-        questionPanel.AddToClassList("question-panel");
-        questionPanel.Add(new Label("Загрузка кроссворда…") { name = "question" });
-        screen.Add(questionPanel);
-
-        screen.Add(new VisualElement { name = "grid-container" });
-
-        VisualElement bottomBar = new VisualElement();
-        bottomBar.AddToClassList("bottom-bar");
-        bottomBar.Add(new Button { name = "delete-button", text = "УДАЛИТЬ" });
-        bottomBar.Add(new Button { name = "hint-button", text = "ПОДСКАЗКА" });
-        bottomBar.Add(new Button { name = "submit-button", text = "ПРОВЕРИТЬ" });
-        screen.Add(bottomBar);
-
-        root.Add(screen);
+    private static void Stretch(RectTransform rect)
+    {
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
     }
 }

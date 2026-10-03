@@ -1,8 +1,8 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UIElements;
+using UnityEngine.UI;
 
-/// <summary>Creates the UI Toolkit document for the crossword scene.</summary>
+/// <summary>Creates the crossword game screen (uGUI, newspaper style) for the game scene.</summary>
 public static class CrosswordSceneBootstrap
 {
     public const string GameSceneName = "MainGameScene";
@@ -31,7 +31,7 @@ public static class CrosswordSceneBootstrap
         }
 
         // MainGameScene previously contained a prototype uGUI Canvas. The playable
-        // screen is exclusively UI Toolkit, so do not render that legacy placeholder.
+        // screen builds its own canvas, so do not render that legacy placeholder.
         // Only canvases owned by the active scene are touched: overlays that survive
         // scene loads (the loading screen) live in the DontDestroyOnLoad scene and
         // must stay alive — deactivating one kills its timers and fade-out.
@@ -46,13 +46,7 @@ public static class CrosswordSceneBootstrap
         }
         Debug.Log($"[CrossBound][Bootstrap] Disabled {disabled} legacy Canvas(es).");
 
-        GameObject screen = new GameObject("Crossword UI Toolkit", typeof(UIDocument), typeof(CrosswordGameView), typeof(CrosswordGameController));
-        UIDocument document = screen.GetComponent<UIDocument>();
-        PanelSettings panelSettings = Resources.Load<PanelSettings>("UI/CrossBoundPanelSettings");
-        if (panelSettings == null)
-            Debug.LogWarning("[CrossBound][Bootstrap] PanelSettings asset NOT found in Resources/UI — creating a blank one at runtime; the UI will likely NOT render. Run CrossBound → Setup Project.");
-        document.panelSettings = panelSettings ?? ScriptableObject.CreateInstance<PanelSettings>();
-        screen.GetComponent<CrosswordGameView>().Configure(document);
-        Debug.Log($"[CrossBound][Bootstrap] Game screen created on '{screen.name}' (PanelSettings: {(panelSettings != null ? "from Resources" : "blank runtime instance")}).");
+        GameObject screen = new GameObject("Crossword Game", typeof(CrosswordGameView), typeof(CrosswordGameController));
+        Debug.Log($"[CrossBound][Bootstrap] Game screen created on '{screen.name}'.");
     }
 }
